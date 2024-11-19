@@ -70,6 +70,8 @@ def load_data(yasno_url, city_name):
 
 def calculate_sum(day_data, group):
     total_sum = ""
+    if group not in day_data["groups"]:
+        return ""
     for event in day_data["groups"][group]:
         total_sum += str(event["start"]) + str(event["end"])
     return total_sum
@@ -111,10 +113,13 @@ def consolidate_periods(items):
 def process_day(day_data, group):
     result = f"Оновлення для {day_data['title']}"
     logger.info(f"start process {result}")
-    periods = consolidate_periods(day_data["groups"][group])
-    for row in periods:
-        result = result + f"\n• {str(row['start']).zfill(2)}:00 - {str(row['end']).zfill(2)}:00"
-        logger.info(row)
+    if group not in day_data["groups"]:
+        result = result + f"\n• без відключень"
+    else:
+        periods = consolidate_periods(day_data["groups"][group])
+        for row in periods:
+            result = result + f"\n• {str(row['start']).zfill(2)}:00 - {str(row['end']).zfill(2)}:00"
+            logger.info(row)
     logger.info(f"{result}")
     return result
 
