@@ -108,7 +108,7 @@ def consolidate_periods(items):
     return consolidated
 
 def process_day(day_data, group):
-    result = f"{"Оновлення для "+day_data["title"]}"
+    result = f"Оновлення для {day_data['title']}"
     logger.info(f"start process {result}")
     periods = consolidate_periods(day_data["groups"][group])
     for row in periods:
