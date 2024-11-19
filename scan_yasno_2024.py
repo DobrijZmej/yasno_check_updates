@@ -68,17 +68,16 @@ def load_data(yasno_url, city_name):
     else:
         return None
 
-def calculate_sum(day_data):
-    total_sum = 0
-    for events in day_data["groups"].values():
-        for event in events:
-            total_sum += event["start"] + event["end"]
+def calculate_sum(day_data, group):
+    total_sum = ""
+    for event in day_data["groups"][group]:
+        total_sum += str(event["start"]) + str(event["end"])
     return total_sum
 
-def is_changed(day_data):
+def is_changed(day_data, group):
     states = load_state_log()
     title = day_data["title"]
-    days = calculate_sum(day_data)
+    days = calculate_sum(day_data, group)
     if title not in states:
         states[title] = days
         save_state_log(states)
@@ -161,7 +160,7 @@ def process_yasno(config):
         #logger.info(day_data)
         title = day_data["title"]
         #logger.info(f"{title}:"+str(calculate_sum(day_data)))
-        if is_changed(day_data):
+        if is_changed(day_data, config["group"]):
             message = process_day(day_data, config["group"])
             send_to_telegram(message, config)
         if(day_name == "today"):
