@@ -143,9 +143,9 @@ def process_alarms(day_data, group):
     for row in periods:
         start_half_hour = row['start'] * 60 - 30
         end_half_hour = row['end'] * 60 - 30
-        if(start_half_hour < current_time_min):
+        if(start_half_hour < current_time_min) and (start_half_hour+30) > current_time_min:
             result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00"
-        if(end_half_hour < current_time_min):
+        if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
             result = f"🟢 Висока #ймовірність заживлення після {str(row['start']).zfill(2)}:00"
         #logger.info(row)
     #logger.info(f"{result}")
