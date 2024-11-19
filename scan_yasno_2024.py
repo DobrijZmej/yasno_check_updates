@@ -144,12 +144,13 @@ def process_alarms(day_data, group):
         start_half_hour = row['start'] * 60 - 30
         end_half_hour = row['end'] * 60 - 30
         if(start_half_hour < current_time_min) and (start_half_hour+30) > current_time_min:
+            states["last_send_alarm"] = current_time.hour
             result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00"
         if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
+            states["last_send_alarm"] = current_time.hour
             result = f"🟢 Висока #ймовірність заживлення після {str(row['start']).zfill(2)}:00"
         #logger.info(row)
     #logger.info(f"{result}")
-    states["last_send_alarm"] = current_time.hour
     save_state_log(states)
     return result
 
