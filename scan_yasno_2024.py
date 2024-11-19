@@ -131,7 +131,6 @@ def process_alarms(day_data, group):
     states = load_state_log()
     current_time = datetime.now()
     current_time_min = current_time.hour * 60 + current_time.minute
-    current_time_min = 12 * 60 + current_time.minute
     if current_time_min == 0:
         states["last_send_alarm"] = None
         save_state_log(states)
