@@ -147,8 +147,8 @@ def process_alarms(day_data, group):
             result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00"
         if(end_half_hour < current_time_min):
             result = f"🟢 Висока #ймовірність заживлення після {str(row['start']).zfill(2)}:00"
-        logger.info(row)
-    logger.info(f"{result}")
+        #logger.info(row)
+    #logger.info(f"{result}")
     states["last_send_alarm"] = current_time.hour
     save_state_log(states)
     return result
@@ -157,9 +157,9 @@ def process_yasno(config):
     data = load_data(config["yasno_url"], config["city"])
     #logger.info(data)
     for day_name, day_data in data.items():
-        logger.info(day_data)
+        #logger.info(day_data)
         title = day_data["title"]
-        logger.info(f"{title}:"+str(calculate_sum(day_data)))
+        #logger.info(f"{title}:"+str(calculate_sum(day_data)))
         if is_changed(day_data):
             message = process_day(day_data, config["group"])
             send_to_telegram(message, config)
