@@ -155,7 +155,7 @@ def process_alarms(day_data, group):
 
 def process_yasno(config):
     data = load_data(config["yasno_url"], config["city"])
-    logger.info(data)
+    #logger.info(data)
     for day_name, day_data in data.items():
         logger.info(day_data)
         title = day_data["title"]
