@@ -113,7 +113,7 @@ def consolidate_periods(items):
 def process_day(day_data, group):
     result = f"Оновлення для {day_data['title']}"
     logger.info(f"start process {result}")
-    if group not in day_data["groups"]:
+    if group not in day_data["groups"] or len(day_data["groups"][group]) == 0:
         result = result + f"\n• без відключень"
     else:
         periods = consolidate_periods(day_data["groups"][group])
@@ -144,6 +144,8 @@ def process_alarms(day_data, group):
     if "last_send_alarm" in states and states["last_send_alarm"] == current_time.hour:
         return None
     result = ""
+    if len(day_data["groups"][group]) == 0:
+        return None
     periods = consolidate_periods(day_data["groups"][group])
     for row in periods:
         start_half_hour = row['start'] * 60 - 30
