@@ -137,6 +137,7 @@ def process_alarms(day_data, group):
     states = load_state_log()
     current_time = datetime.now()
     current_time_min = current_time.hour * 60 + current_time.minute
+    current_time_min = 18 * 60 + 35
     if current_time_min == 0:
         states["last_send_alarm"] = None
         save_state_log(states)
@@ -154,7 +155,7 @@ def process_alarms(day_data, group):
         #logger.info(f"{current_time_min} | {start_half_hour} | {end_half_hour}")
         if(start_half_hour <= current_time_min) and (start_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00"
+            result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00\nПовернення очікую після {str(row['end']).zfill(2)}:00"
         if(end_half_hour <= current_time_min) and (end_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
             result = f"🟢 Висока #ймовірність заживлення після {str(row['end']).zfill(2)}:00"
