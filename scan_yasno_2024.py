@@ -78,7 +78,7 @@ def calculate_sum(day_data, group):
 
 def is_changed(day_data, group):
     states = load_state_log()
-    title = day_data["title"]
+    title = day_data["title"].split(" на ")[0]
     days = calculate_sum(day_data, group)
     if title not in states:
         states[title] = days
@@ -150,7 +150,7 @@ def process_alarms(day_data, group):
     periods = consolidate_periods(day_data["groups"][group])
     for row in periods:
         start_half_hour = row['start'] * 60 - 30
-        end_half_hour = row['end'] * 60 - 30
+        end_half_hour = row['end'] * 60 - 30 - 60
         #logger.info(f"{current_time.hour}:{current_time.minute} | {row['start']} | {row['end']} | {group}")
         #logger.info(f"{current_time_min} | {start_half_hour} | {end_half_hour}")
         if(start_half_hour < current_time_min) and (start_half_hour+30) > current_time_min:
@@ -158,7 +158,7 @@ def process_alarms(day_data, group):
             result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00\nПовернення очікую після {str(row['end']).zfill(2)}:00"
         if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🟢 Висока #ймовірність заживлення після {str(row['end']).zfill(2)}:00"
+            result = f"🟢 Висока #ймовірність заживлення після {str(row['end']).zfill(2)}:00 (або почнуть черед пів години)"
         #logger.info(row)
     #logger.info(f"{result}")
     save_state_log(states)
