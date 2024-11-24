@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import time
-
+import pytz
 import requests
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -135,7 +135,8 @@ def send_to_telegram(message, config):
 
 def process_alarms(day_data, group):
     states = load_state_log()
-    current_time = datetime.now()
+    kyiv_timezone = pytz.timezone('Europe/Kyiv')
+    current_time = datetime.now(kyiv_timezone)
     current_time_min = current_time.hour * 60 + current_time.minute
     #current_time_min = 18 * 60 + 35
     if current_time_min == 0:
@@ -158,7 +159,7 @@ def process_alarms(day_data, group):
             result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00\nПовернення очікую після {str(row['end']).zfill(2)}:00"
         if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🟢 Висока #ймовірність заживлення після {str(row['end']).zfill(2)}:00 (або почнуть черед пів години)"
+            result = f"🟢 Висока #ймовірність заживлення після {str(row['end']-1).zfill(2)}:00"
         #logger.info(row)
     #logger.info(f"{result}")
     save_state_log(states)
