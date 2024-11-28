@@ -186,7 +186,7 @@ def main():
             config = load_config()
             process_yasno(config)
             save_config(config)
-            time.sleep(10)
+            time.sleep(58)
     except KeyboardInterrupt:
         logger.info("Вимикаюсь...")
 
