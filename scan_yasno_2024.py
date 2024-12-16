@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import time
-import pytz
+#import pytz
 import requests
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -118,7 +118,7 @@ def process_day(day_data, group):
     else:
         periods = consolidate_periods(day_data["groups"][group])
         for row in periods:
-            result = result + f"\n• {str(row['start']).zfill(2)}:00 - {str(row['end']).zfill(2)}:00"
+            result = result + f"\n• {format_time(row['start'])} - {format_time(row['end'])}"
             logger.info(row)
     logger.info(f"{result}")
     return result
@@ -133,10 +133,24 @@ def send_to_telegram(message, config):
     }
     requests.post(url, data=payload)
 
+def format_time(time_str):
+    try:
+        time_float = float(time_str)
+        hours = int(time_float)
+        minutes = int(round((time_float - hours) * 60))  # Round to nearest minute
+
+        if hours < 0 or minutes < 0 or minutes >= 60: # check for invalid input
+          return None
+
+        return f"{hours:02}:{minutes:02}"
+    except ValueError:
+        return None  # Handle invalid input (non-numeric string)
+
 def process_alarms(day_data, group):
     states = load_state_log()
-    kyiv_timezone = pytz.timezone('Europe/Kyiv')
-    current_time = datetime.now(kyiv_timezone)
+    #kyiv_timezone = pytz.timezone('Europe/Kyiv')
+    #current_time = datetime.now(kyiv_timezone)
+    current_time = datetime.now()
     current_time_min = current_time.hour * 60 + current_time.minute
     #current_time_min = 18 * 60 + 35
     if current_time_min == 0:
@@ -146,20 +160,20 @@ def process_alarms(day_data, group):
     if "last_send_alarm" in states and states["last_send_alarm"] == current_time.hour:
         return None
     result = ""
-    if len(day_data["groups"][group]) == 0:
+    if group not in day_data["groups"] or len(day_data["groups"][group]) == 0:
         return None
     periods = consolidate_periods(day_data["groups"][group])
     for row in periods:
-        start_half_hour = row['start'] * 60 - 30
-        end_half_hour = row['end'] * 60 - 30 - 60
+        start_half_hour = float(row['start']) * 60 - 30
+        end_half_hour = float(row['end']) * 60 - 30 - 60
         #logger.info(f"{current_time.hour}:{current_time.minute} | {row['start']} | {row['end']} | {group}")
         #logger.info(f"{current_time_min} | {start_half_hour} | {end_half_hour}")
         if(start_half_hour < current_time_min) and (start_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🔴 Висока #ймовірність відключення після {str(row['start']).zfill(2)}:00\nПовернення очікую після {str(row['end']).zfill(2)}:00"
+            result = f"🔴 Висока #ймовірність відключення після {format_time(row['start'])}\nПовернення очікую після {format_time(row['end'])}:00"
         if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🟢 Висока #ймовірність заживлення після {str(row['end']-1).zfill(2)}:00"
+            result = f"🟢 Висока #ймовірність заживлення після {format_time(row['end'])}"
         #logger.info(row)
     #logger.info(f"{result}")
     save_state_log(states)
