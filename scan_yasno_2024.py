@@ -170,7 +170,7 @@ def process_alarms(day_data, group):
         #logger.info(f"{current_time_min} | {start_half_hour} | {end_half_hour}")
         if(start_half_hour < current_time_min) and (start_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🔴 Висока #ймовірність відключення після {format_time(row['start'])}\nПовернення очікую після {format_time(row['end'])}:00"
+            result = f"🔴 Висока #ймовірність відключення після {format_time(row['start'])}\nПовернення очікую після {format_time(row['end'])}"
         if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
             result = f"🟢 Висока #ймовірність заживлення після {format_time(row['end'])}"
