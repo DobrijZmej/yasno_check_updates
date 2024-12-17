@@ -60,7 +60,7 @@ def load_data(yasno_url, city_name):
     if response.status_code == 200:
         data = response.json()
         data = extract_today(data, "dailySchedule")
-        if city_name in data:
+        if data and city_name in data:
             data = data[city_name]
         else:
             data = None
@@ -133,9 +133,9 @@ def send_to_telegram(message, config):
     }
     requests.post(url, data=payload)
 
-def format_time(time_str):
+def format_time(time_str, minutes_justfication = 0):
     try:
-        time_float = float(time_str)
+        time_float = float(time_str) + minutes_justfication
         hours = int(time_float)
         minutes = int(round((time_float - hours) * 60))  # Round to nearest minute
 
@@ -157,6 +157,7 @@ def process_alarms(day_data, group):
         states["last_send_alarm"] = None
         save_state_log(states)
         return None
+    #logger.info(f"{current_time.hour}:{current_time.minute} | {states["last_send_alarm"]} | {group}")
     if "last_send_alarm" in states and states["last_send_alarm"] == current_time.hour:
         return None
     result = ""
@@ -165,15 +166,16 @@ def process_alarms(day_data, group):
     periods = consolidate_periods(day_data["groups"][group])
     for row in periods:
         start_half_hour = float(row['start']) * 60 - 30
-        end_half_hour = float(row['end']) * 60 - 30 - 60
-        #logger.info(f"{current_time.hour}:{current_time.minute} | {row['start']} | {row['end']} | {group}")
+        end_half_hour = float(row['end']) * 60 - 60
+        #logger.info(f"\n{current_time.hour}:{current_time.minute} | {row['start']} | {row['end']} | {group}")
         #logger.info(f"{current_time_min} | {start_half_hour} | {end_half_hour}")
+        #logger.info(f"{current_time_min} | {end_half_hour} | {end_half_hour+30}")
         if(start_half_hour < current_time_min) and (start_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🔴 Висока #ймовірність відключення після {format_time(row['start'])}\nПовернення очікую після {format_time(row['end'])}"
+            result = f"🔴 Висока #ймовірність відключення після {format_time(row['start'])}\nПовернення очікую після {format_time(row['end'], -0.5)}"
         if(end_half_hour < current_time_min) and (end_half_hour+30) > current_time_min:
             states["last_send_alarm"] = current_time.hour
-            result = f"🟢 Висока #ймовірність заживлення після {format_time(row['end'])}"
+            result = f"🟢 Висока #ймовірність заживлення після {format_time(row['end'], -0.5)}"
         #logger.info(row)
     #logger.info(f"{result}")
     save_state_log(states)
@@ -182,6 +184,8 @@ def process_alarms(day_data, group):
 def process_yasno(config):
     data = load_data(config["yasno_url"], config["city"])
     #logger.info(data)
+    if not data:
+        return None
     for day_name, day_data in data.items():
         #logger.info(day_data)
         title = day_data["title"]
