@@ -31,7 +31,7 @@ def should_send_schedule(group, date_str, is_changed, state, day_data=None):
         has_outages = False
         if 'slots' in day_data:
             for slot in day_data['slots']:
-                if slot.get('type') == 'Definite':
+                if slot.get('type') in {'Definite', 'Possible'}:
                     has_outages = True
                     break
         

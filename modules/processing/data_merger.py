@@ -114,7 +114,7 @@ def has_outages(day_data):
         return False
     
     for slot in day_data['slots']:
-        if slot.get('type') == 'Definite':
+        if slot.get('type') in {'Definite', 'Possible'}:
             return True
     
     return False
@@ -134,6 +134,7 @@ def merge_data_sources(yasno_data, dtek_schedule_data, dtek_fact_data):
     Args:
         yasno_data: дані з YASNO {date: {...}}
         dtek_schedule_data: дані з DTEK Schedule {'dates': {date: {...}}, 'update_time': str}
+            Дата може містити вже нормалізовані 'slots' або старе поле 'hours'.
         dtek_fact_data: графік з аварій DTEK {date: {...}}
     
     Returns:
@@ -162,11 +163,14 @@ def merge_data_sources(yasno_data, dtek_schedule_data, dtek_fact_data):
     if dtek_schedule_data and 'dates' in dtek_schedule_data:
         # Конвертуємо дані DTEK у формат YASNO
         for date_str, date_data in dtek_schedule_data['dates'].items():
-            dtek_converted = convert_dtek_to_yasno_format(
-                date_data['hours'],
-                date_str,
-                date_data['update_time']
-            )
+            if 'slots' in date_data:
+                dtek_converted = date_data
+            else:
+                dtek_converted = convert_dtek_to_yasno_format(
+                    date_data['hours'],
+                    date_str,
+                    date_data['update_time']
+                )
             dtek_dates[date_str] = dtek_converted
             logger.debug(f"✅ Конвертовано DTEK дані для {date_str}")
     
@@ -192,7 +196,9 @@ def merge_data_sources(yasno_data, dtek_schedule_data, dtek_fact_data):
             merged[target_date] = dtek_dates[target_date]
             source_info[target_date] = {
                 'source': 'dtek',
-                'update_time': dtek_schedule_data.get('update_time', '')
+                'update_time': dtek_dates[target_date].get(
+                    'update_time', dtek_schedule_data.get('update_time', '')
+                )
             }
             continue
         
@@ -212,7 +218,9 @@ def merge_data_sources(yasno_data, dtek_schedule_data, dtek_fact_data):
             merged[target_date] = dtek_dates[target_date]
             source_info[target_date] = {
                 'source': 'dtek',
-                'update_time': dtek_schedule_data.get('update_time', '')
+                'update_time': dtek_dates[target_date].get(
+                    'update_time', dtek_schedule_data.get('update_time', '')
+                )
             }
             continue
         

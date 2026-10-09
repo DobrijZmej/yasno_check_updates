@@ -25,10 +25,12 @@ def calculate_schedule_hash(day_data):
     if not day_data or "slots" not in day_data:
         return ""
     
-    # Враховуємо тільки слоти типу "Definite" (планові відключення)
+    # Preserve the existing hash representation for confirmed outages.
     for slot in day_data["slots"]:
         if slot.get("type") == "Definite":
             hash_str += f"{slot['start']}-{slot['end']}"
+        elif slot.get("type") == "Possible":
+            hash_str += f"P{slot['start']}-{slot['end']}"
     
     # Додаємо дату для унікальності
     if "date" in day_data:

@@ -2,16 +2,12 @@
 Основний модуль для моніторингу розкладу електропостачання.
 
 Архітектура:
-1. Отримання даних з 4 джерел + визначення групи
+1. Отримання графіків і режимів з вибраного вручну джерела; аварії обробляються окремо
 2. Об'єднання даних з пріоритетами
 3. Формування правил відправки
 4. Відправка повідомлень
 
-Пріоритет джерел:
-1. DTEK Fact (графік з аварій) - найвищий
-2. DTEK Schedule (плановий)
-3. YASNO
-4. Standard Schedule (резервний)
+Графіки: DTEK для адреси має пріоритет над графіками груп YASNO.
 """
 
 import os
@@ -20,7 +16,8 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-# Імпорти з нових модулів
+# Імпорти з модулів
+from modules.data_sources.svitlo_monitor_loader import load_svitlo_monitor_data
 from modules.data_sources.yasno_loader import load_yasno_data
 from modules.data_sources.dtek_schedule_loader import load_dtek_schedule_data
 from modules.data_sources.dtek_fact_loader import load_dtek_fact_data
@@ -44,9 +41,12 @@ from modules.notification.notifier import (
 from modules.notification.external_api import send_to_external_api
 from modules.notification.hourly_notifications import check_upcoming_events
 from modules.processing.state_manager import StateManager as StateManagerClass
+from modules.processing.mode_history import advance_mode_history, format_mode_transition
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
+
+SCHEDULE_SOURCES = {"unified", "legacy"}
 
 
 def setup_logging():
@@ -80,10 +80,13 @@ def load_config():
     load_dotenv()
     
     config = {
-        'group': os.getenv('GROUP', '6.2'),
+        'group': os.getenv('GROUP', '8.1'),
+        'schedule_source': os.getenv('SCHEDULE_SOURCE', 'unified').strip().lower(),
         'use_dynamic_group': os.getenv('USE_DYNAMIC_GROUP', 'false').lower() in ('true', '1', 'yes'),
         'enable_hourly_notifications': os.getenv('ENABLE_HOURLY_NOTIFICATIONS', 'true').lower() in ('true', '1', 'yes'),
         'enable_alarm_notifications': os.getenv('ENABLE_ALARM_NOTIFICATIONS', 'true').lower() in ('true', '1', 'yes'),
+        'enable_mode_notifications': os.getenv('ENABLE_MODE_NOTIFICATIONS', 'true').lower() in ('true', '1', 'yes'),
+        'svitlo_monitor_url': os.getenv('SVITLO_MONITOR_URL', 'https://kit.uca.co.ua/svitlo_monitor_response.json'),
         'yasno_url': os.getenv('YASNO_URL', 'https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages'),
         'dtek_url': os.getenv('DTEK_URL', 'https://kit.uca.co.ua/dtek_parsed.json'),
         'dtek_alarms_url': os.getenv('DTEK_PRYLADNYJ_URL', 'https://kit.uca.co.ua/dtek_pryladnyj.json'),
@@ -98,6 +101,38 @@ def load_config():
     return config
 
 
+def load_schedule_sources(config, group):
+    """Load schedules from the explicitly selected source.
+
+    There is intentionally no automatic fallback: switching back to the old
+    APIs requires setting SCHEDULE_SOURCE=legacy.
+    """
+    source = config['schedule_source']
+    if source not in SCHEDULE_SOURCES:
+        raise ValueError(
+            f"Unsupported SCHEDULE_SOURCE={source!r}; expected unified or legacy"
+        )
+
+    if source == 'unified':
+        unified_data = load_svitlo_monitor_data(config['svitlo_monitor_url'], group)
+        if not unified_data:
+            return None, None, None, {}
+        return (
+            unified_data['yasno_data'],
+            unified_data['dtek_schedule_data'],
+            None,
+            unified_data['mode_data'],
+        )
+
+    logger.warning("⚠️ Увімкнено ручний legacy-режим джерел графіка")
+    return (
+        load_yasno_data(config['yasno_url'], group),
+        load_dtek_schedule_data(config['dtek_url'], group),
+        load_dtek_fact_data(config['dtek_alarms_url'], group),
+        {},
+    )
+
+
 def main():
     """Головна функція"""
     setup_logging()
@@ -109,11 +144,20 @@ def main():
     config = load_config()
     monitoring_group = config['group']
     use_dynamic_group = config['use_dynamic_group']
+
+    if config['schedule_source'] not in SCHEDULE_SOURCES:
+        logger.error(
+            "❌ Невідоме SCHEDULE_SOURCE=%s; дозволено unified або legacy",
+            config['schedule_source'],
+        )
+        return
     
     logger.info(f"⚙️ Група за замовчуванням: {monitoring_group}")
+    logger.info(f"📡 Джерело графіків: {config['schedule_source'].upper()}")
     logger.info(f"🔄 Динамічне визначення групи: {'Увімкнено' if use_dynamic_group else 'Вимкнено'}")
     logger.info(f"⏰ Попередження за годину: {'Увімкнено' if config['enable_hourly_notifications'] else 'Вимкнено'}")
     logger.info(f"🚨 Сповіщення про аварії: {'Увімкнено' if config['enable_alarm_notifications'] else 'Вимкнено'}")
+    logger.info(f"🔄 Сповіщення про режими: {'Увімкнено' if config['enable_mode_notifications'] else 'Вимкнено'}")
     
     # Підготовка списків чатів
     schedule_chat_ids = []
@@ -198,20 +242,38 @@ def main():
         state['last_monitoring_group'] = monitoring_group
         save_state(state)
     
-    # 1.2. DTEK Fact (з аварій)
+    # 1.2. Вибране вручну джерело графіків і режимів
     logger.info("")
-    logger.info("📊 1.2. Завантаження DTEK Fact (графік з аварій)...")
-    dtek_fact_data = load_dtek_fact_data(config['dtek_alarms_url'], monitoring_group)
-    
-    # 1.3. DTEK Schedule
-    logger.info("")
-    logger.info("📊 1.3. Завантаження DTEK Schedule...")
-    dtek_schedule_data = load_dtek_schedule_data(config['dtek_url'], monitoring_group)
-    
-    # 1.4. YASNO
-    logger.info("")
-    logger.info("📊 1.4. Завантаження YASNO...")
-    yasno_data = load_yasno_data(config['yasno_url'], monitoring_group)
+    logger.info("📊 1.2. Завантаження даних у режимі %s...", config['schedule_source'])
+    yasno_data, dtek_schedule_data, dtek_fact_data, mode_data = load_schedule_sources(
+        config,
+        monitoring_group,
+    )
+
+    mode_state, mode_transitions = advance_mode_history(
+        mode_data,
+        state.get('mode_history')
+    )
+    if mode_transitions and config['enable_mode_notifications'] and has_schedule_chats:
+        mode_message = "\n\n".join(
+            format_mode_transition(transition) for transition in mode_transitions
+        )
+        sent_count = send_to_multiple_chats(
+            config['telegram_bot_token'],
+            schedule_chat_ids,
+            mode_message
+        )
+        if sent_count:
+            state['mode_history'] = mode_state
+            logger.info(f"✅ Сповіщення про режими відправлено в {sent_count}/{len(schedule_chat_ids)} чат(ів)")
+        else:
+            logger.error("❌ Сповіщення про режими не відправлено; переходи буде повторено")
+    else:
+        state['mode_history'] = mode_state
+        if mode_transitions and not config['enable_mode_notifications']:
+            logger.info("⏭️ Сповіщення про режими вимкнені")
+        elif mode_transitions and not has_schedule_chats:
+            logger.warning("⚠️ Немає чатів для сповіщень про режими")
     
     # === КРОК 2: Об'єднання даних ===
     logger.info("")

@@ -119,17 +119,14 @@ def format_schedule_message(date_str, day_data, group, day_label, source_info=No
     if is_standard:
         result += "\n⚠️ <b>УВАГА:</b> Офіційний графік не опублікований. Використовується стандартний графік білих зон."
     
-    # Витягуємо Definite слоти
-    definite_slots = []
+    # Витягуємо підтверджені та можливі відключення
+    outage_slots = {"Definite": [], "Possible": []}
     if day_data and "slots" in day_data:
         for slot in day_data["slots"]:
-            # Перевіряємо обидва формати: 'type' та 'state'
-            if slot.get("type") == "Definite" or slot.get("state") == "Definite":
-                # Конвертуємо час у хвилини якщо потрібно
+            slot_type = slot.get("type") or slot.get("state")
+            if slot_type in outage_slots:
                 start = slot["start"]
                 end = slot["end"]
-                
-                # Якщо час у форматі рядка "HH:MM", конвертуємо у хвилини
                 if isinstance(start, str):
                     h, m = map(int, start.split(':'))
                     start = h * 60 + m
@@ -137,17 +134,19 @@ def format_schedule_message(date_str, day_data, group, day_label, source_info=No
                     h, m = map(int, end.split(':'))
                     end = h * 60 + m
                 
-                definite_slots.append({
+                outage_slots[slot_type].append({
                     "start": start,
                     "end": end
                 })
-    
-    if not definite_slots:
-        result += "\n• Планових відключень немає"
-    else:
-        periods = consolidate_periods(definite_slots)
-        result += f"\n• Планові відключення ({len(periods)} період{'и' if len(periods) > 1 else ''}):"
-        
+
+    if not outage_slots["Definite"] and not outage_slots["Possible"]:
+        result += "\n• Підтверджених планових відключень немає"
+    for slot_type, heading in (("Definite", "Планові відключення"), ("Possible", "Можливі відключення")):
+        if not outage_slots[slot_type]:
+            continue
+        periods = consolidate_periods(outage_slots[slot_type])
+        result += f"\n• {heading} ({len(periods)} період{'и' if len(periods) > 1 else ''}):"
+
         for period in periods:
             start_time = format_time(period['start'])
             end_time = format_time(period['end'])
@@ -155,7 +154,8 @@ def format_schedule_message(date_str, day_data, group, day_label, source_info=No
             duration_str = format_duration(duration_minutes)
             
             if start_time and end_time:
-                result += f"\n  ⚡ {start_time} - {end_time} ({duration_str})"
+                marker = "⚡" if slot_type == "Definite" else "◦"
+                result += f"\n  {marker} {start_time} - {end_time} ({duration_str})"
     
     return result
 

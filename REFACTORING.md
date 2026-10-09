@@ -11,15 +11,14 @@ yasno_check_updates_2025/
 ├── main.py                    # Головний файл запуску
 ├── modules/                   # Модулі додатку
 │   ├── data_sources/         # Джерела даних
-│   │   ├── yasno_loader.py           # YASNO API
-│   │   ├── dtek_schedule_loader.py   # DTEK Schedule API
-│   │   ├── dtek_fact_loader.py       # DTEK Fact (з аварій)
+│   │   ├── svitlo_monitor_loader.py  # Агреговані графіки й режими
 │   │   ├── standard_loader.py        # Стандартний графік
 │   │   ├── group_detector.py         # Визначення групи
 │   │   └── alarms_loader.py          # Аварії DTEK
 │   ├── processing/           # Обробка даних
 │   │   ├── data_merger.py            # Об'єднання з пріоритетами
-│   │   └── state_manager.py          # Hash-based зміни
+│   │   ├── state_manager.py          # Hash-based зміни
+│   │   └── mode_history.py           # Переходи й тривалість режимів
 │   └── notification/         # Нотифікації
 │       ├── rules.py                  # Правила відправки
 │       └── notifier.py               # Telegram відправка
@@ -33,19 +32,12 @@ yasno_check_updates_2025/
 
 Додаток працює в 4 кроки:
 
-#### 1. Отримання даних з джерел
-- **YASNO API** - офіційний графік YASNO
-- **DTEK Schedule API** - плановий графік ДTEK
-- **DTEK Fact** - графік з аварій (з DTEK Alarms API)
-- **Standard Schedule** - резервний графік з файлу
-- **Group Detector** - автоматичне визначення групи на основі аварій
+#### 1. Отримання даних
+- **Уніфікований endpoint** - графіки YASNO для груп, адресний графік DTEK і режими DTEK/YASNO/Укренерго
+- **DTEK Alarms API** - окремий потік аварій та визначення групи; ця інтеграція його не змінює
 
 #### 2. Об'єднання даних з пріоритетами
-Модуль `data_merger.py` об'єднує дані за пріоритетами:
-1. **DTEK Fact** (найвищий) - найточніший, оновлюється під час аварій
-2. **DTEK Schedule** - плановий графік від DTEK
-3. **YASNO** - офіційний графік YASNO
-4. **Standard Schedule** (резервний) - використовується якщо всі інші недоступні
+Модуль `data_merger.py` об'єднує нормалізовані графіки: адресний DTEK має пріоритет за наявності підтверджених відключень, інакше використовується YASNO для вибраної групи.
 
 #### 3. Формування правил відправки
 Модуль `rules.py` визначає:
@@ -95,12 +87,12 @@ python main.py
 ### Конфігурація (.env)
 
 ```env
-GROUP=12.1
-YASNO_API_URL=https://...
-DTEK_API_URL=https://...
-DTEK_ALARMS_API_URL=https://...
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
+GROUP=8.1
+SCHEDULE_SOURCE=unified
+SVITLO_MONITOR_URL=https://kit.uca.co.ua/svitlo_monitor_response.json
+ENABLE_MODE_NOTIFICATIONS=true
+BOT_TOKEN=...
+CHAT_ID=...
 ```
 
 ### Логування
@@ -126,9 +118,9 @@ TELEGRAM_CHAT_ID=...
 Кожен модуль можна тестувати окремо:
 
 ```python
-# Тест YASNO loader
-from modules.data_sources.yasno_loader import load_yasno_data
-data = load_yasno_data('https://...', '12.1')
+# Тест уніфікованого loader
+from modules.data_sources.svitlo_monitor_loader import load_svitlo_monitor_data
+data = load_svitlo_monitor_data('https://kit.uca.co.ua/svitlo_monitor_response.json', '8.1')
 
 # Тест data merger
 from modules.processing.data_merger import merge_data_sources
