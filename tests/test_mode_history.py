@@ -192,17 +192,74 @@ def test_future_only_announcement_keeps_previous_active_mode():
     state, transitions = advance_mode_history(mode_data, previous_state)
 
     assert transitions == []
-    assert state == previous_state
+    ignored_key = "2026-10-09T20:29:02+03:00|no_outages"
+    assert state["dtek"]["current_status"] == "scheduled"
+    assert state["dtek"]["last_event_key"] == previous_state["dtek"]["last_event_key"]
+    assert state["dtek"]["ignored_event_keys"] == [ignored_key]
 
     # A refreshed observation on the announced day must not activate the
     # status that was classified for the previous day.
     mode_data["dtek"]["current"]["observed_at"] = "2026-10-10T00:05:00+03:00"
     refreshed_state, refreshed_transitions = advance_mode_history(
         mode_data,
-        previous_state,
+        state,
     )
     assert refreshed_transitions == []
-    assert refreshed_state == previous_state
+    assert refreshed_state["dtek"]["current_status"] == "scheduled"
+    assert refreshed_state["dtek"]["ignored_event_keys"] == [ignored_key]
+
+
+def test_ignored_future_event_stays_filtered_after_corrective_event_is_appended():
+    ignored_key = "2026-10-09T20:29:02+03:00|no_outages"
+    previous_state = {
+        "dtek": {
+            "last_event_key": "2026-10-09T10:00:00+03:00|scheduled",
+            "current_status": "scheduled",
+            "current_since": "2026-10-09T10:00:00+03:00",
+            "durations_seconds": {"scheduled": 3600},
+        }
+    }
+    mode_data = {
+        "dtek": {
+            "current": {
+                "status": "scheduled",
+                "observed_at": "2026-10-09T20:30:02+03:00",
+                "message": "Поточний режим залишається плановим.",
+            },
+            "history": [
+                {
+                    "status": "scheduled",
+                    "changed_at": "2026-10-09T10:00:00+03:00",
+                },
+                {
+                    "status": "no_outages",
+                    "changed_at": "2026-10-09T20:29:02+03:00",
+                    "observed_at": "2026-10-09T20:29:02+03:00",
+                    "message": "10.10 діють стабілізаційні відключення.",
+                    "classification": {
+                        "temporal_schema": 1,
+                        "active_from": None,
+                        "active_until": None,
+                        "status_during_window": None,
+                        "status_outside_window": None,
+                    },
+                },
+                {
+                    "status": "scheduled",
+                    "changed_at": "2026-10-09T20:30:02+03:00",
+                },
+            ],
+        }
+    }
+
+    state, transitions = advance_mode_history(mode_data, previous_state)
+
+    assert transitions == []
+    assert state["dtek"]["current_status"] == "scheduled"
+    assert state["dtek"]["last_event_key"] == (
+        "2026-10-09T20:30:02+03:00|scheduled"
+    )
+    assert state["dtek"]["ignored_event_keys"] == [ignored_key]
 
 
 def test_announcement_for_observation_date_can_change_active_mode():

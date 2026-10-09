@@ -257,9 +257,18 @@ def main():
         state.get('mode_history')
     )
     if mode_transitions and config['enable_mode_notifications'] and has_schedule_chats:
+        for transition in mode_transitions:
+            logger.info(
+                "🔄 Перехід режиму %s: %s → %s (подія: %s)",
+                transition['provider'],
+                transition['previous_status'],
+                transition['status'],
+                transition['changed_at'].isoformat(),
+            )
         mode_message = "\n\n".join(
             format_mode_transition(transition) for transition in mode_transitions
         )
+        logger.info("📨 Повідомлення про зміну режиму:\n%s", mode_message)
         sent_count = send_to_multiple_chats(
             config['telegram_bot_token'],
             schedule_chat_ids,

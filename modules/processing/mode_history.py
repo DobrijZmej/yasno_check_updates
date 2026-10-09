@@ -126,7 +126,7 @@ def _is_future_only_announcement(current, event_changed_at=None):
     )
 
 
-def _read_provider_history(provider_data):
+def _read_provider_history(provider_data, ignored_event_keys=None):
     current = provider_data.get("current")
     if (
         not isinstance(current, dict)
@@ -137,6 +137,7 @@ def _read_provider_history(provider_data):
     ):
         return []
 
+    ignored_event_keys = ignored_event_keys if ignored_event_keys is not None else set()
     events = []
     seen = set()
     for item in provider_data.get("history", []):
@@ -150,6 +151,16 @@ def _read_provider_history(provider_data):
         if key in seen:
             continue
         seen.add(key)
+        if key in ignored_event_keys:
+            continue
+        if _is_future_only_announcement(item, changed_at):
+            ignored_event_keys.add(key)
+            logger.info(
+                "Ignoring future-only %s mode event at %s; keeping the active mode",
+                status,
+                changed_at.isoformat(),
+            )
+            continue
         events.append({
             "status": status,
             "changed_at": changed_at,
@@ -165,6 +176,7 @@ def _read_provider_history(provider_data):
         and _is_future_only_announcement(current, events[-1]["changed_at"])
     ):
         ignored = events.pop()
+        ignored_event_keys.add(ignored["key"])
         logger.info(
             "Ignoring future-only %s mode event at %s; keeping the active mode",
             ignored["status"],
@@ -200,11 +212,18 @@ def advance_mode_history(mode_data, previous_state=None, now=None):
     for provider, provider_data in mode_data.items():
         if provider not in PROVIDER_LABELS or not isinstance(provider_data, dict):
             continue
-        events = _read_provider_history(provider_data)
+
+        provider_state = next_state.setdefault(provider, {"durations_seconds": {}})
+        ignored_event_keys = set(provider_state.get("ignored_event_keys", []))
+        events = _read_provider_history(provider_data, ignored_event_keys)
+        if ignored_event_keys:
+            # Histories are bounded by the feed. Keep a bounded local memory as
+            # well so an ignored event cannot reappear as an intermediate
+            # transition after the provider publishes a correction.
+            provider_state["ignored_event_keys"] = sorted(ignored_event_keys)[-50:]
         if not events:
             continue
 
-        provider_state = next_state.setdefault(provider, {"durations_seconds": {}})
         cursor = provider_state.get("last_event_key")
 
         if not cursor:
