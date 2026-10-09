@@ -31,3 +31,4 @@ def test_send_telegram_message_includes_footer(monkeypatch):
     assert send_telegram_message("token", "chat", "Повідомлення")
     assert captured["payload"]["text"] == f"Повідомлення\n\n{TELEGRAM_FOOTER}"
     assert captured["payload"]["parse_mode"] == "HTML"
+    assert captured["payload"]["link_preview_options"] == {"is_disabled": True}

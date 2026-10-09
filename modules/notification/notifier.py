@@ -230,7 +230,8 @@ def send_telegram_message(bot_token, chat_id, message):
         payload = {
             'chat_id': chat_id,
             'text': append_telegram_footer(message),
-            'parse_mode': 'HTML'
+            'parse_mode': 'HTML',
+            'link_preview_options': {'is_disabled': True},
         }
         
         response = requests.post(url, json=payload, timeout=30)
