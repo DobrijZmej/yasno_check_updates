@@ -27,7 +27,9 @@ from modules.data_sources.alarms_loader import load_dtek_alarms, process_dtek_al
 from modules.processing.data_merger import merge_data_sources
 from modules.processing.state_manager import (
     load_state, save_state, is_changed, update_state, 
-    cleanup_old_states, clear_hash_for_date
+    cleanup_old_states, clear_hash_for_date,
+    calculate_outage_duration, get_stored_schedule_slots,
+    normalize_schedule_slots,
 )
 
 from modules.notification.rules import (
@@ -378,9 +380,29 @@ def main():
             state,
             source.get('source', '')
         )
+
+        current_periods = normalize_schedule_slots(day_data.get('slots', []))
+        previous_periods = get_stored_schedule_slots(
+            state,
+            monitoring_group,
+            date_str,
+        )
+        duration_delta_minutes = None
+        if previous_periods is not None:
+            duration_delta_minutes = (
+                calculate_outage_duration(current_periods)
+                - calculate_outage_duration(previous_periods)
+            )
         
         # Визначаємо чи відправляти
-        if should_send_schedule(monitoring_group, date_str, changed, state, day_data):
+        send_schedule = should_send_schedule(
+            monitoring_group,
+            date_str,
+            changed,
+            state,
+            day_data,
+        )
+        if send_schedule:
             # Формуємо повідомлення
             message = format_schedule_message(
                 date_str,
@@ -388,7 +410,8 @@ def main():
                 monitoring_group,
                 day_label,
                 source,
-                group_change_info
+                group_change_info,
+                duration_delta_minutes,
             )
             
             logger.info(f"")
@@ -411,8 +434,32 @@ def main():
             
             if success:
                 # Оновлюємо стан
-                update_state(monitoring_group, date_str, new_hash, state)
+                update_state(
+                    monitoring_group,
+                    date_str,
+                    new_hash,
+                    state,
+                    periods=current_periods,
+                )
                 save_state(state)
+        elif (
+            new_hash
+            and (
+                changed
+                or previous_periods is None
+                or state.get(f"{monitoring_group}_{date_str}") != new_hash
+            )
+        ):
+            # Persist valid schedules even when there is nothing to notify
+            # about. This also backfills intervals for duration deltas.
+            update_state(
+                monitoring_group,
+                date_str,
+                new_hash,
+                state,
+                periods=current_periods,
+            )
+            save_state(state)
         
         # Відправка на зовнішній API (незалежно від змін)
         if external_api_enabled:

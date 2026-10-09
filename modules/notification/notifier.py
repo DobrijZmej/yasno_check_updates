@@ -81,7 +81,15 @@ def consolidate_periods(periods):
     return consolidated
 
 
-def format_schedule_message(date_str, day_data, group, day_label, source_info=None, group_change_info=None):
+def format_schedule_message(
+    date_str,
+    day_data,
+    group,
+    day_label,
+    source_info=None,
+    group_change_info=None,
+    duration_delta_minutes=None,
+):
     """
     Формує повідомлення про розклад.
     
@@ -92,6 +100,7 @@ def format_schedule_message(date_str, day_data, group, day_label, source_info=No
         day_label: "сьогодні" або "завтра"
         source_info: {'source': str, 'update_time': str}
         group_change_info: {'previous': str, 'current': str} якщо група змінилась
+        duration_delta_minutes: зміна сумарного часу відключень у хвилинах
     
     Returns:
         str: форматоване повідомлення
@@ -168,6 +177,14 @@ def format_schedule_message(date_str, day_data, group, day_label, source_info=No
             if start_time and end_time:
                 marker = "⚡" if slot_type == "Definite" else "◦"
                 result += f"\n  {marker} {start_time} - {end_time} ({duration_str})"
+
+    if duration_delta_minutes is not None:
+        if duration_delta_minutes > 0:
+            result += f"\nчас відключень збільшився на {format_duration(duration_delta_minutes)}"
+        elif duration_delta_minutes < 0:
+            result += f"\nчас відключень зменшився на {format_duration(abs(duration_delta_minutes))}"
+        else:
+            result += "\nчас відключень не змінився"
     
     return result
 

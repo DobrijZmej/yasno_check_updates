@@ -10,6 +10,108 @@ import hashlib
 logger = logging.getLogger(__name__)
 
 
+OUTAGE_TYPES = ("Definite", "Possible")
+
+
+def normalize_schedule_slots(slots):
+    """Return a canonical representation of outage intervals.
+
+    Providers can describe the same outage either as one long slot or as a
+    sequence of adjacent hourly slots.  Sorting and merging by outage type
+    makes those representations equivalent for change detection.
+    """
+    intervals_by_type = {slot_type: [] for slot_type in OUTAGE_TYPES}
+
+    for slot in slots or []:
+        if not isinstance(slot, dict):
+            continue
+
+        slot_type = slot.get("type")
+        if slot_type not in intervals_by_type:
+            continue
+
+        try:
+            start = int(slot["start"])
+            end = int(slot["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        if not 0 <= start < end <= 1440:
+            continue
+
+        intervals_by_type[slot_type].append((start, end))
+
+    normalized = []
+    for slot_type, intervals in intervals_by_type.items():
+        merged = []
+        for start, end in sorted(intervals):
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+
+        normalized.extend(
+            {"start": start, "end": end, "type": slot_type}
+            for start, end in merged
+        )
+
+    return sorted(
+        normalized,
+        key=lambda slot: (slot["start"], slot["end"], slot["type"]),
+    )
+
+
+def calculate_outage_duration(slots):
+    """Return total outage minutes without double-counting overlaps."""
+    intervals = sorted(
+        (slot["start"], slot["end"])
+        for slot in normalize_schedule_slots(slots)
+    )
+    merged = []
+    for start, end in intervals:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return sum(end - start for start, end in merged)
+
+
+def get_stored_schedule_slots(state, group, date_str):
+    """Read canonical intervals saved for an earlier version of a schedule."""
+    value = state.get(f"{group}_{date_str}_periods")
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(value, list):
+        return None
+    return normalize_schedule_slots(value)
+
+
+def _schedule_date(day_data):
+    """Normalize provider-specific ISO timestamps to a calendar date."""
+    value = day_data.get("date", "")
+    return value[:10] if isinstance(value, str) else str(value)
+
+
+def _calculate_legacy_schedule_hash(day_data):
+    """Calculate the pre-normalization hash for a seamless state migration."""
+    hash_str = ""
+    for slot in day_data.get("slots", []):
+        if slot.get("type") == "Definite":
+            hash_str += f"{slot['start']}-{slot['end']}"
+        elif slot.get("type") == "Possible":
+            hash_str += f"P{slot['start']}-{slot['end']}"
+
+    if "date" in day_data:
+        hash_str += day_data["date"]
+
+    return hashlib.md5(hash_str.encode()).hexdigest() if hash_str else ""
+
+
 def calculate_schedule_hash(day_data):
     """
     Обчислюємо хеш для відстеження змін у розкладі.
@@ -20,27 +122,20 @@ def calculate_schedule_hash(day_data):
     Returns:
         str: хеш розкладу
     """
-    hash_str = ""
-    
     if not day_data or "slots" not in day_data:
         return ""
-    
-    # Preserve the existing hash representation for confirmed outages.
-    for slot in day_data["slots"]:
-        if slot.get("type") == "Definite":
-            hash_str += f"{slot['start']}-{slot['end']}"
-        elif slot.get("type") == "Possible":
-            hash_str += f"P{slot['start']}-{slot['end']}"
-    
-    # Додаємо дату для унікальності
-    if "date" in day_data:
-        hash_str += day_data["date"]
-    
-    # Повертаємо MD5 хеш
-    if hash_str:
-        return hashlib.md5(hash_str.encode()).hexdigest()
-    else:
-        return ""
+
+    canonical_schedule = {
+        "date": _schedule_date(day_data),
+        "slots": normalize_schedule_slots(day_data["slots"]),
+    }
+    hash_str = json.dumps(
+        canonical_schedule,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.md5(hash_str.encode()).hexdigest()
 
 
 def load_state(state_file="states.json"):
@@ -108,6 +203,15 @@ def is_changed(group, date_str, day_data, state, source=''):
     
     # Отримуємо старий хеш
     old_hash = state.get(state_key, "")
+
+    # Existing installations store hashes of raw provider slots.  If the old
+    # value matches the current raw representation, migrate it without
+    # reporting a schedule change on the first run after this update.
+    legacy_hash = _calculate_legacy_schedule_hash(day_data)
+    if old_hash and old_hash != new_hash and old_hash == legacy_hash:
+        logger.info(f"🔄 Стандартизовано збережений хеш для {state_key}")
+        state[state_key] = new_hash
+        old_hash = new_hash
     
     # Якщо хеш змінився - є зміна
     changed = (old_hash != new_hash) and new_hash != ""
@@ -147,8 +251,9 @@ def update_state(group, date_str, new_hash, state, periods=None):
     # Зберігаємо періоди в окремому ключі для порівняння (якщо передані)
     if periods is not None:
         periods_key = f"{group}_{date_str}_periods"
-        state[periods_key] = json.dumps(periods)
-        logger.debug(f"💾 Збережено {len(periods)} періодів для {state_key}")
+        normalized_periods = normalize_schedule_slots(periods)
+        state[periods_key] = json.dumps(normalized_periods)
+        logger.debug(f"💾 Збережено {len(normalized_periods)} періодів для {state_key}")
     
     logger.debug(f"🔄 Оновлено стан для {state_key}")
     return state

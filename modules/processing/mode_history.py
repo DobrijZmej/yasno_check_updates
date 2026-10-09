@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 from html import escape
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,9 @@ STATUS_EMOJIS = {
     "unknown": "❔",
 }
 
+ISO_DATE_PATTERN = re.compile(r"(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)")
+SHORT_DATE_PATTERN = re.compile(r"(?<!\d)(\d{1,2})\.(\d{1,2})(?!\d)")
+
 
 def _parse_timestamp(value):
     if not isinstance(value, str):
@@ -53,6 +57,73 @@ def _read_comment(item):
         if isinstance(value, str) and value.strip():
             return value.strip()
     return None
+
+
+def _mentioned_dates(text, reference):
+    """Extract calendar dates mentioned in a provider announcement."""
+    if not isinstance(text, str):
+        return []
+
+    dates = set()
+    for year, month, day in ISO_DATE_PATTERN.findall(text):
+        try:
+            dates.add(datetime(int(year), int(month), int(day)).date())
+        except ValueError:
+            continue
+
+    for day, month in SHORT_DATE_PATTERN.findall(text):
+        try:
+            candidate = datetime(reference.year, int(month), int(day)).date()
+        except ValueError:
+            continue
+        # A short date near New Year can refer to the following year.
+        if (candidate - reference.date()).days < -180:
+            try:
+                candidate = datetime(reference.year + 1, int(month), int(day)).date()
+            except ValueError:
+                continue
+        dates.add(candidate)
+
+    return sorted(dates)
+
+
+def _is_future_only_announcement(current, event_changed_at=None):
+    """Whether a classified announcement describes only a future period.
+
+    A future-only publication must not replace today's active mode.  Prefer
+    structured temporal metadata, then fall back to explicit dates in the
+    provider's message when the classifier left its temporal fields empty.
+    """
+    if not isinstance(current, dict):
+        return False
+
+    classification = current.get("classification")
+    if not isinstance(classification, dict):
+        return False
+
+    reference_time = event_changed_at or _parse_timestamp(current.get("observed_at"))
+    if reference_time is None:
+        return False
+
+    active_from = _parse_timestamp(classification.get("active_from"))
+    if active_from is not None and active_from > reference_time:
+        return True
+
+    temporal_fields = (
+        classification.get("active_from"),
+        classification.get("active_until"),
+        classification.get("status_during_window"),
+        classification.get("status_outside_window"),
+    )
+    if any(value is not None for value in temporal_fields):
+        return False
+
+    comment = _read_comment(current)
+    mentioned_dates = _mentioned_dates(comment, reference_time)
+    return bool(mentioned_dates) and all(
+        mentioned_date > reference_time.date()
+        for mentioned_date in mentioned_dates
+    )
 
 
 def _read_provider_history(provider_data):
@@ -87,6 +158,19 @@ def _read_provider_history(provider_data):
         })
 
     events.sort(key=lambda event: event["changed_at"])
+
+    if (
+        events
+        and events[-1]["status"] == current.get("status")
+        and _is_future_only_announcement(current, events[-1]["changed_at"])
+    ):
+        ignored = events.pop()
+        logger.info(
+            "Ignoring future-only %s mode event at %s; keeping the active mode",
+            ignored["status"],
+            ignored["changed_at"].isoformat(),
+        )
+
     if (
         events
         and events[-1]["status"] == current.get("status")
