@@ -130,6 +130,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Application state files
+states.json
+
 # Spyder project settings
 .spyderproject
 .spyproject

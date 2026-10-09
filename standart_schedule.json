@@ -1,0 +1,361 @@
+{
+  "provider": "DTEK",
+  "queue": "6.2",
+  "address": "пров. Приладний, 10В",
+  "status": "emergency_outage",
+  "week": {
+    "monday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "01:00",
+          "state": "no_power"
+        },
+        {
+          "from": "01:00",
+          "to": "04:00",
+          "state": "power_on"
+        },
+        {
+          "from": "04:00",
+          "to": "04:30",
+          "state": "power_on"
+        },
+        {
+          "from": "04:30",
+          "to": "05:00",
+          "state": "no_power"
+        },
+        {
+          "from": "05:00",
+          "to": "11:00",
+          "state": "no_power"
+        },
+        {
+          "from": "11:00",
+          "to": "11:30",
+          "state": "no_power"
+        },
+        {
+          "from": "11:30",
+          "to": "12:00",
+          "state": "power_on"
+        },
+        {
+          "from": "12:00",
+          "to": "15:00",
+          "state": "power_on"
+        },
+        {
+          "from": "15:00",
+          "to": "22:00",
+          "state": "no_power"
+        },
+        {
+          "from": "22:00",
+          "to": "24:00",
+          "state": "power_on"
+        }
+      ]
+    },
+    "tuesday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "01:00",
+          "state": "power_on"
+        },
+        {
+          "from": "01:00",
+          "to": "08:00",
+          "state": "no_power"
+        },
+        {
+          "from": "08:00",
+          "to": "08:30",
+          "state": "no_power"
+        },
+        {
+          "from": "08:30",
+          "to": "09:00",
+          "state": "power_on"
+        },
+        {
+          "from": "09:00",
+          "to": "12:00",
+          "state": "power_on"
+        },
+        {
+          "from": "12:00",
+          "to": "19:00",
+          "state": "no_power"
+        },
+        {
+          "from": "19:00",
+          "to": "22:00",
+          "state": "power_on"
+        },
+        {
+          "from": "22:00",
+          "to": "22:30",
+          "state": "power_on"
+        },
+        {
+          "from": "22:30",
+          "to": "23:00",
+          "state": "no_power"
+        },
+        {
+          "from": "23:00",
+          "to": "24:00",
+          "state": "no_power"
+        }
+      ]
+    },
+    "wednesday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "05:00",
+          "state": "no_power"
+        },
+        {
+          "from": "05:00",
+          "to": "05:30",
+          "state": "no_power"
+        },
+        {
+          "from": "05:30",
+          "to": "06:00",
+          "state": "power_on"
+        },
+        {
+          "from": "06:00",
+          "to": "09:00",
+          "state": "power_on"
+        },
+        {
+          "from": "09:00",
+          "to": "16:00",
+          "state": "no_power"
+        },
+        {
+          "from": "16:00",
+          "to": "19:00",
+          "state": "power_on"
+        },
+        {
+          "from": "19:00",
+          "to": "19:30",
+          "state": "power_on"
+        },
+        {
+          "from": "19:30",
+          "to": "20:00",
+          "state": "no_power"
+        },
+        {
+          "from": "20:00",
+          "to": "24:00",
+          "state": "no_power"
+        }
+      ]
+    },
+    "thursday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "02:00",
+          "state": "no_power"
+        },
+        {
+          "from": "02:00",
+          "to": "02:30",
+          "state": "no_power"
+        },
+        {
+          "from": "02:30",
+          "to": "03:00",
+          "state": "power_on"
+        },
+        {
+          "from": "03:00",
+          "to": "06:00",
+          "state": "power_on"
+        },
+        {
+          "from": "06:00",
+          "to": "13:00",
+          "state": "no_power"
+        },
+        {
+          "from": "13:00",
+          "to": "16:00",
+          "state": "power_on"
+        },
+        {
+          "from": "16:00",
+          "to": "16:30",
+          "state": "power_on"
+        },
+        {
+          "from": "16:30",
+          "to": "17:00",
+          "state": "no_power"
+        },
+        {
+          "from": "17:00",
+          "to": "23:00",
+          "state": "no_power"
+        },
+        {
+          "from": "23:00",
+          "to": "23:30",
+          "state": "no_power"
+        },
+        {
+          "from": "23:30",
+          "to": "24:00",
+          "state": "power_on"
+        }
+      ]
+    },
+    "friday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "03:00",
+          "state": "power_on"
+        },
+        {
+          "from": "03:00",
+          "to": "10:00",
+          "state": "no_power"
+        },
+        {
+          "from": "10:00",
+          "to": "13:00",
+          "state": "power_on"
+        },
+        {
+          "from": "13:00",
+          "to": "13:30",
+          "state": "power_on"
+        },
+        {
+          "from": "13:30",
+          "to": "14:00",
+          "state": "no_power"
+        },
+        {
+          "from": "14:00",
+          "to": "20:00",
+          "state": "no_power"
+        },
+        {
+          "from": "20:00",
+          "to": "20:30",
+          "state": "no_power"
+        },
+        {
+          "from": "20:30",
+          "to": "21:00",
+          "state": "power_on"
+        },
+        {
+          "from": "21:00",
+          "to": "24:00",
+          "state": "power_on"
+        }
+      ]
+    },
+    "saturday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "07:00",
+          "state": "no_power"
+        },
+        {
+          "from": "07:00",
+          "to": "10:00",
+          "state": "power_on"
+        },
+        {
+          "from": "10:00",
+          "to": "10:30",
+          "state": "power_on"
+        },
+        {
+          "from": "10:30",
+          "to": "11:00",
+          "state": "no_power"
+        },
+        {
+          "from": "11:00",
+          "to": "18:00",
+          "state": "no_power"
+        },
+        {
+          "from": "18:00",
+          "to": "21:00",
+          "state": "power_on"
+        },
+        {
+          "from": "21:00",
+          "to": "24:00",
+          "state": "no_power"
+        }
+      ]
+    },
+    "sunday": {
+      "intervals": [
+        {
+          "from": "00:00",
+          "to": "04:00",
+          "state": "no_power"
+        },
+        {
+          "from": "04:00",
+          "to": "07:00",
+          "state": "power_on"
+        },
+        {
+          "from": "07:00",
+          "to": "07:30",
+          "state": "power_on"
+        },
+        {
+          "from": "07:30",
+          "to": "08:00",
+          "state": "no_power"
+        },
+        {
+          "from": "08:00",
+          "to": "14:00",
+          "state": "no_power"
+        },
+        {
+          "from": "14:00",
+          "to": "14:30",
+          "state": "no_power"
+        },
+        {
+          "from": "14:30",
+          "to": "15:00",
+          "state": "power_on"
+        },
+        {
+          "from": "15:00",
+          "to": "18:00",
+          "state": "power_on"
+        },
+        {
+          "from": "18:00",
+          "to": "24:00",
+          "state": "no_power"
+        }
+      ]
+    }
+  }
+}
