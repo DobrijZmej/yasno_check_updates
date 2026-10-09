@@ -7,6 +7,18 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+TELEGRAM_FOOTER = (
+    '<a href="https://t.me/+ZQZvzzIFH3c2Yzgy">Цей бот</a> | '
+    '<a href="https://akadem-svitlo.kiev.ua/">Сайт ЖК</a>'
+)
+
+
+def append_telegram_footer(message):
+    """Append the shared links once to a Telegram HTML message."""
+    if TELEGRAM_FOOTER in message:
+        return message
+    return f"{message}\n\n{TELEGRAM_FOOTER}"
+
 
 def format_time(minutes):
     """Конвертує хвилини від початку дня у формат HH:MM"""
@@ -217,7 +229,7 @@ def send_telegram_message(bot_token, chat_id, message):
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {
             'chat_id': chat_id,
-            'text': message,
+            'text': append_telegram_footer(message),
             'parse_mode': 'HTML'
         }
         
