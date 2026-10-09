@@ -17,9 +17,17 @@ MODE_LABELS = {
 }
 
 PROVIDER_LABELS = {
-    "dtek": "DTEK",
+    "dtek": "ДТЕК",
     "yasno": "YASNO",
     "ukrenergo": "Укренерго",
+}
+
+STATUS_EMOJIS = {
+    "emergency": "🚨",
+    "scheduled": "✅",
+    "no_outages": "✅",
+    "waiting_for_schedule": "⏳",
+    "unknown": "❔",
 }
 
 
@@ -190,16 +198,18 @@ def format_mode_transition(transition):
     provider = PROVIDER_LABELS[transition["provider"]]
     previous = MODE_LABELS[transition["previous_status"]]
     current = MODE_LABELS[transition["status"]]
-    changed_at = transition["changed_at"].strftime("%d.%m %H:%M")
     duration = _format_duration(transition["duration_seconds"])
-    total_duration = _format_duration(transition.get("total_seconds", 0))
-    elapsed = _format_duration(transition.get("elapsed_since_change_seconds", 0))
-    result = (
-        f"🔄 <b>{provider}</b>: режим змінився: {previous} → {current}.\n"
-        f"Попередній режим тривав {duration}; сумарно за доступною історією: {total_duration}.\n"
-        f"Час зміни: {changed_at}. Після перемикання минуло {elapsed}."
-    )
+    emoji = STATUS_EMOJIS[transition["status"]]
+
+    if transition["provider"] == "dtek" and transition["status"] == "emergency":
+        headline = f"🚨 <b>ДТЕК</b>: У Києві екстрені відключення. Графіки не діють"
+    elif transition["provider"] == "dtek" and transition["previous_status"] == "emergency":
+        headline = f"{emoji} <b>ДТЕК</b>: Екстрені відключення скасовано"
+    else:
+        headline = f"{emoji} <b>{provider}</b>: режим змінився: {previous} → {current}."
+
+    result = f"{headline}\nМинула зміна була {duration} тому"
     comment = transition.get("comment")
     if transition["provider"] == "dtek" and comment:
-        result += f"\n\n<b>Коментар DTEK:</b>\n{escape(comment, quote=False)}"
+        result += f"\n\n💬 <b>Коментар ДТЕК:</b>\n{escape(comment, quote=False)}"
     return result

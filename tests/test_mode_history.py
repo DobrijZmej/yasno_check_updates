@@ -58,11 +58,11 @@ def test_new_mode_transition_reports_episode_and_accumulated_duration():
     assert transitions[0]["total_seconds"] == 100 * 60
     assert transitions[0]["elapsed_since_change_seconds"] == 7 * 60 + 30
     message = format_mode_transition(transitions[0])
-    assert "1 год 30 хв" in message
-    assert "Після перемикання минуло 7 хв" in message
-    assert "Час зміни: 09.10 11:30." in message
+    assert "Минула зміна була 1 год 30 хв тому" in message
+    assert "Час зміни" not in message
+    assert "сумарно" not in message
     assert "+0300" not in message
-    assert "<b>Коментар DTEK:</b>" in message
+    assert "💬 <b>Коментар ДТЕК:</b>" in message
     assert "&lt;терміново&gt; &amp;" in message
     assert state["dtek"]["durations_seconds"]["scheduled"] == 100 * 60
 
@@ -97,7 +97,38 @@ def test_latest_dtek_current_comment_is_used_when_history_has_none():
     )
 
     assert transitions[0]["comment"] == "Застосовані аварійні відключення."
-    assert "Після перемикання минуло 3 хв" in format_mode_transition(transitions[0])
+    message = format_mode_transition(transitions[0])
+    assert "🚨 <b>ДТЕК</b>: У Києві екстрені відключення. Графіки не діють" in message
+    assert "Минула зміна була 2 год тому" in message
+
+
+def test_yasno_scheduled_transition_uses_success_emoji_and_short_text():
+    transition = {
+        "provider": "yasno",
+        "previous_status": "emergency",
+        "status": "scheduled",
+        "changed_at": datetime.fromisoformat("2026-10-09T11:13:00+03:00"),
+        "duration_seconds": 2 * 60 * 60 + 47 * 60,
+    }
+
+    assert format_mode_transition(transition) == (
+        "✅ <b>YASNO</b>: режим змінився: аварійний → плановий.\n"
+        "Минула зміна була 2 год 47 хв тому"
+    )
+
+
+def test_dtek_emergency_cancellation_has_dedicated_headline():
+    transition = {
+        "provider": "dtek",
+        "previous_status": "emergency",
+        "status": "scheduled",
+        "changed_at": datetime.fromisoformat("2026-10-09T13:00:00+03:00"),
+        "duration_seconds": 45 * 60,
+    }
+
+    message = format_mode_transition(transition)
+
+    assert message.startswith("✅ <b>ДТЕК</b>: Екстрені відключення скасовано")
 
 
 def test_stale_provider_does_not_advance_mode_cursor():
