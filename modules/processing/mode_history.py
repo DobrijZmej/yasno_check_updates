@@ -6,6 +6,8 @@ from html import escape
 import logging
 import re
 
+from modules.timeutils import to_kyiv
+
 logger = logging.getLogger(__name__)
 
 
@@ -104,6 +106,8 @@ def _is_future_only_announcement(current, event_changed_at=None):
     reference_time = event_changed_at or _parse_timestamp(current.get("observed_at"))
     if reference_time is None:
         return False
+    # Дати в повідомленнях провайдера вказані за київським часом
+    reference_time = to_kyiv(reference_time)
 
     active_from = _parse_timestamp(classification.get("active_from"))
     if active_from is not None and active_from > reference_time:

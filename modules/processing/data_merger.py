@@ -10,7 +10,7 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from modules.timeutils import today_str
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +142,8 @@ def merge_data_sources(yasno_data, dtek_schedule_data, dtek_fact_data):
             - merged_data: {date: {...}}
             - source_info: {date: {'source': str, 'update_time': str}}
     """
-    today_date = datetime.now().strftime('%Y-%m-%d')
-    tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    today_date = today_str()
+    tomorrow_date = today_str(1)
     
     logger.debug(f"📅 Потрібні дати: {today_date}, {tomorrow_date}")
     

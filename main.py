@@ -13,8 +13,9 @@
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
+
+from modules.timeutils import today_str, kyiv_log_time_converter
 
 # Імпорти з модулів
 from modules.data_sources.svitlo_monitor_loader import load_svitlo_monitor_data
@@ -64,6 +65,7 @@ def setup_logging():
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    formatter.converter = kyiv_log_time_converter
     log_handler.setFormatter(formatter)
     
     root_logger = logging.getLogger()
@@ -233,8 +235,8 @@ def main():
             'current': monitoring_group
         }
         
-        today = datetime.now().strftime('%Y-%m-%d')
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        today = today_str()
+        tomorrow = today_str(1)
         
         # Очищаємо хеші для ОБОХ груп
         for date_str in [today, tomorrow]:
@@ -306,8 +308,8 @@ def main():
         logger.info("=" * 60)
         
         # Показуємо які дані використовуємо
-        today_date = datetime.now().strftime('%Y-%m-%d')
-        tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        today_date = today_str()
+        tomorrow_date = today_str(1)
         
         if today_date in merged_data:
             today_source = source_info.get(today_date, {}).get('source', 'невідомо')
@@ -369,8 +371,8 @@ def main():
     else:
         logger.info(f"📱 Відправка розкладу в {len(schedule_chat_ids)} чат(ів)")
     
-    today = datetime.now().strftime('%Y-%m-%d')
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    today = today_str()
+    tomorrow = today_str(1)
     
     for date_str in [today, tomorrow]:
         if date_str not in merged_data:

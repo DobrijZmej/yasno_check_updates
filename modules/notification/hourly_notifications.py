@@ -3,7 +3,7 @@
 та відправки попереджень за певний час до них
 """
 import logging
-from datetime import datetime
+from modules.timeutils import now_kyiv
 from modules.processing.state_manager import StateManager
 from modules.data_sources.ha_power_checker import get_power_status_from_ha
 
@@ -160,7 +160,7 @@ def check_upcoming_events(merged_data, group, state_manager):
         return None
     
     # Поточний час
-    current_time = datetime.now()
+    current_time = now_kyiv()
     current_time_min = current_time.hour * 60 + current_time.minute
     current_date = current_time.strftime('%Y-%m-%d')
     

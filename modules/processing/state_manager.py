@@ -7,6 +7,8 @@ import logging
 import os
 import hashlib
 
+from modules.timeutils import today_str
+
 logger = logging.getLogger(__name__)
 
 
@@ -270,9 +272,7 @@ def cleanup_old_states(state, days_to_keep=7):
     Returns:
         dict: очищений стан
     """
-    from datetime import datetime, timedelta
-    
-    cutoff_date = (datetime.now() - timedelta(days=days_to_keep)).strftime('%Y-%m-%d')
+    cutoff_date = today_str(-days_to_keep)
     
     keys_to_remove = []
     for key in state.keys():

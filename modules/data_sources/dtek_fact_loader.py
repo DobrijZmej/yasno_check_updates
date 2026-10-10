@@ -5,7 +5,7 @@
 import logging
 import requests
 import json
-from datetime import datetime
+from modules.timeutils import from_timestamp_kyiv
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ def parse_dtek_fact_schedule(dtek_alarms_data, group):
             try:
                 # Конвертуємо timestamp у дату
                 timestamp = int(timestamp_str)
-                date_obj = datetime.fromtimestamp(timestamp)
+                date_obj = from_timestamp_kyiv(timestamp)
                 date_str = date_obj.strftime('%Y-%m-%d')
                 
                 logger.debug(f"📅 DTEK Fact: Обробка дати {date_str} (timestamp {timestamp_str})")

@@ -4,7 +4,8 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
+from modules.timeutils import today_str
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +138,8 @@ def load_standard_schedule_data(dates=None):
     """
     if dates is None:
         # За замовчуванням беремо сьогодні та завтра
-        today = datetime.now().strftime('%Y-%m-%d')
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        today = today_str()
+        tomorrow = today_str(1)
         dates = [today, tomorrow]
     
     logger.debug(f"📡 Завантаження стандартного розкладу для дат: {dates}")

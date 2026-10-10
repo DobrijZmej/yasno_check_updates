@@ -5,7 +5,7 @@
 import logging
 import requests
 import json
-from datetime import datetime
+from modules.timeutils import from_timestamp_kyiv
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def load_dtek_schedule_data(dtek_url, group):
         result = {}
         for timestamp_str in fact_data.keys():
             timestamp = int(timestamp_str)
-            date_obj = datetime.fromtimestamp(timestamp)
+            date_obj = from_timestamp_kyiv(timestamp)
             date_str = date_obj.strftime('%Y-%m-%d')
             
             group_data = fact_data[timestamp_str].get(dtek_group, {})

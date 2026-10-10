@@ -3,7 +3,8 @@
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
+from modules.timeutils import today_str
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +75,8 @@ def determine_day_label(date_str):
     Returns:
         str: 'today', 'tomorrow' або None
     """
-    today = datetime.now().strftime('%Y-%m-%d')
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    today = today_str()
+    tomorrow = today_str(1)
     
     if date_str == today:
         return 'today'
