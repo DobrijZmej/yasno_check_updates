@@ -35,7 +35,7 @@ def test_send_telegram_message_includes_footer(monkeypatch):
     assert captured["payload"]["link_preview_options"] == {"is_disabled": True}
 
 
-def test_schedule_message_reports_increased_outage_duration_after_intervals():
+def test_schedule_message_shows_total_share_and_increase_after_intervals():
     message = format_schedule_message(
         "2026-10-09",
         {
@@ -49,8 +49,38 @@ def test_schedule_message_reports_increased_outage_duration_after_intervals():
         duration_delta_minutes=232,
     )
 
-    assert message.endswith("час відключень збільшився на 3:52")
-    assert message.index("21:00 - 24:00") < message.index("час відключень")
+    assert message.endswith("Час без світла: 6:30 (27%), зміна: +3:52")
+    assert message.index("21:00 - 24:00") < message.index("Час без світла")
+
+
+def test_first_schedule_for_day_shows_total_without_delta():
+    message = format_schedule_message(
+        "2026-10-09",
+        {"slots": [
+            {"start": 150, "end": 570, "type": "Definite"},
+            {"start": 750, "end": 1200, "type": "Definite"},
+            {"start": 1320, "end": 1440, "type": "Definite"},
+            {"start": 1200, "end": 1230, "type": "Possible"},
+        ]},
+        "8.1",
+        "сьогодні (09.10)",
+    )
+
+    assert message.endswith("Час без світла: 17:00 (71%)")
+
+
+def test_overlapping_definite_and_possible_are_not_counted_twice():
+    message = format_schedule_message(
+        "2026-10-09",
+        {"slots": [
+            {"start": 720, "end": 840, "type": "Definite"},
+            {"start": 780, "end": 900, "type": "Possible"},
+        ]},
+        "8.1",
+        "сьогодні (09.10)",
+    )
+
+    assert message.endswith("Час без світла: 3:00 (13%)")
 
 
 def test_schedule_message_reports_decreased_or_unchanged_duration():
@@ -71,5 +101,5 @@ def test_schedule_message_reports_decreased_or_unchanged_duration():
         duration_delta_minutes=0,
     )
 
-    assert decreased.endswith("час відключень зменшився на 2:31")
-    assert unchanged.endswith("час відключень не змінився")
+    assert decreased.endswith("Час без світла: 3:30 (15%), зміна: -2:31")
+    assert unchanged.endswith("Час без світла: 3:30 (15%), без змін")

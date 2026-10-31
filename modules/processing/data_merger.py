@@ -33,7 +33,7 @@ def convert_dtek_hours_to_slots(hours_data):
         status = hours_data.get(hour_str, 'yes')
         
         hour_start_minutes = (hour - 1) * 60
-        hour_end_minutes = hour * 60 if hour < 24 else 0
+        hour_end_minutes = hour * 60
         
         if status == 'no':
             # Немає світла

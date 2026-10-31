@@ -115,8 +115,6 @@ def parse_svitlo_monitor_data(payload, group):
     schema_version = payload.get("schema_version")
     if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise ValueError(f"Unsupported svitlo monitor schema version: {schema_version!r}")
-    if payload.get("schema_version") not in (None, 4):
-        raise ValueError(f"Unsupported svitlo monitor schema: {payload['schema_version']}")
 
     schedules = payload["schedules"]
     yasno_data = {}

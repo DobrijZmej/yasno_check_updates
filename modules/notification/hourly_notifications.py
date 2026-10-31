@@ -4,7 +4,7 @@
 """
 import logging
 from modules.timeutils import now_kyiv
-from modules.processing.state_manager import StateManager
+from modules.processing.state_manager import StateManager, consolidate_periods
 from modules.data_sources.ha_power_checker import get_power_status_from_ha
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def format_time(minutes, offset=0):
     try:
         total_minutes = minutes + offset
         
-        if total_minutes < 0 or total_minutes >= 1440:
+        if total_minutes < 0 or total_minutes > 1440:
             return None
         
         hours = int(total_minutes // 60)
@@ -55,41 +55,6 @@ def extract_definite_slots(schedule_data):
     definite_slots = [slot for slot in slots if slot.get('type') == 'Definite']
     
     return definite_slots if definite_slots else None
-
-
-def consolidate_periods(slots):
-    """
-    Об'єднує суміжні періоди відключень у єдині блоки
-    
-    Args:
-        slots: Список слотів з полями start, end, type
-    
-    Returns:
-        Список консолідованих періодів
-    """
-    if not slots or len(slots) == 0:
-        return []
-    
-    # Сортуємо за початком
-    sorted_slots = sorted(slots, key=lambda x: x['start'])
-    
-    consolidated = []
-    current = dict(sorted_slots[0])  # Копіюємо перший період
-    
-    for slot in sorted_slots[1:]:
-        # Якщо наступний період починається до або одразу після закінчення поточного
-        if slot['start'] <= current['end']:
-            # Розширюємо поточний період
-            current['end'] = max(current['end'], slot['end'])
-        else:
-            # Зберігаємо завершений період і починаємо новий
-            consolidated.append(current)
-            current = dict(slot)
-    
-    # Додаємо останній період
-    consolidated.append(current)
-    
-    return consolidated
 
 
 def is_cross_day_continuation(schedule_data):
@@ -138,14 +103,16 @@ def check_upcoming_events(merged_data, group, state_manager):
     """
     Перевіряє чи наближається відключення або відновлення електроенергії
     та повертає відповідне попередження
-    
+
     Args:
         merged_data: Об'єднані дані з усіх джерел (today, tomorrow)
         group: Номер групи відключень
-        state_manager: Менеджер стану для збереження відправлених сповіщень
-    
+        state_manager: Менеджер стану для перевірки відправлених сповіщень
+
     Returns:
-        Текст попередження або None якщо попередження не потрібне
+        {'message': str, 'key': str} або None якщо попередження не потрібне.
+        Ключ позначається як відправлений лише після успішної відправки,
+        щоб після збою попередження повторилося на наступному запуску.
     """
     logger.debug(f"🚨 Перевірка майбутніх подій для групи {group}")
     
@@ -194,11 +161,6 @@ def check_upcoming_events(merged_data, group, state_manager):
         
         logger.info(f"🔍 Перевірка періоду {i+1}: {format_time(start_minutes)} - {format_time(end_minutes)}")
         
-        # ПРОПУСКАЄМО період що починається о 00:00 якщо це продовження
-        if start_minutes == 0 and has_cross_day:
-            logger.info(f"⏭️ Причина: Період {i+1} пропущено - це продовження вчорашнього відключення")
-            continue
-        
         # === ПОПЕРЕДЖЕННЯ ЗА 30 ХВИЛИН (ПІВ ГОДИНИ) ДО ВІДКЛЮЧЕННЯ ===
         start_warning_time = start_minutes - 30
         start_warning_end = start_warning_time + 30
@@ -221,10 +183,7 @@ def check_upcoming_events(merged_data, group, state_manager):
                 continue
             
             logger.info(f"✅ ВІДПРАВКА: Попередження про відключення (поточний час {current_time.strftime('%H:%M')} у вікні {format_time(start_warning_time)}-{format_time(start_warning_end)})")
-            
-            # Зберігаємо що відправили попередження
-            state_manager.mark_notification_sent(alarm_key, current_time.isoformat())
-            
+
             start_time = format_time(start_minutes)
             
             # Якщо період закінчується о 24:00 і продовжується завтра
@@ -247,7 +206,10 @@ def check_upcoming_events(merged_data, group, state_manager):
             else:
                 end_time = format_time(end_minutes, -30)
             
-            return f"🔴 Попередження: відключення о {start_time}\nОчікуване відновлення: {end_time}"
+            return {
+                'message': f"🔴 Попередження: відключення о {start_time}\nОчікуване відновлення: {end_time}",
+                'key': alarm_key,
+            }
         
         # === ПОПЕРЕДЖЕННЯ ЗА 60 ХВИЛИН (1 ГОД) ДО ВІДНОВЛЕННЯ ===
         # Для кросс-день періодів що закінчуються о 24:00 НЕ надсилаємо
@@ -276,14 +238,14 @@ def check_upcoming_events(merged_data, group, state_manager):
                 continue
             
             logger.info(f"✅ ВІДПРАВКА: Попередження про відновлення (поточний час {current_time.strftime('%H:%M')} у вікні {format_time(end_warning_time)}-{format_time(end_warning_end)})")
-            
-            # Зберігаємо що відправили попередження
-            state_manager.mark_notification_sent(alarm_key, current_time.isoformat())
-            
+
             end_time_start = format_time(end_minutes, -30)
             end_time_end = format_time(end_minutes, 0)
-            
-            return f"🟢 Очікується відновлення електроенергії з {end_time_start} по {end_time_end}"
+
+            return {
+                'message': f"🟢 Очікується відновлення електроенергії з {end_time_start} по {end_time_end}",
+                'key': alarm_key,
+            }
     
     logger.info("❌ Причина: Поточний час не потрапляє у вікна попереджень (за 60 хв до подій)")
     return None

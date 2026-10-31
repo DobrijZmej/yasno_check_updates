@@ -6,31 +6,9 @@ import logging
 import requests
 import json
 
+from modules.processing.state_manager import consolidate_periods
+
 logger = logging.getLogger(__name__)
-
-
-def consolidate_periods(periods):
-    """Об'єднує сусідні періоди відключень"""
-    if not periods:
-        return []
-    
-    # Сортуємо за початком
-    sorted_periods = sorted(periods, key=lambda x: x['start'])
-    
-    consolidated = []
-    current = sorted_periods[0].copy()
-    
-    for period in sorted_periods[1:]:
-        if period['start'] <= current['end']:
-            # Об'єднуємо
-            current['end'] = max(current['end'], period['end'])
-        else:
-            # Новий період
-            consolidated.append(current)
-            current = period.copy()
-    
-    consolidated.append(current)
-    return consolidated
 
 
 def send_to_external_api(date_str, day_data, group, api_url, api_token):

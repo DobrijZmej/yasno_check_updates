@@ -15,7 +15,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 
-from modules.timeutils import today_str, kyiv_log_time_converter
+from modules.timeutils import now_kyiv, today_str, kyiv_log_time_converter
 
 # Імпорти з модулів
 from modules.data_sources.svitlo_monitor_loader import load_svitlo_monitor_data
@@ -30,12 +30,12 @@ from modules.processing.state_manager import (
     load_state, save_state, is_changed, update_state, 
     cleanup_old_states, clear_hash_for_date,
     calculate_outage_duration, get_stored_schedule_slots,
-    normalize_schedule_slots,
+    normalize_schedule_slots, mark_alarm_seen,
 )
 
 from modules.notification.rules import (
-    should_send_schedule, should_send_alarm, 
-    format_date_label
+    should_send_schedule, should_send_alarm,
+    format_date_label, is_schedule_pending
 )
 from modules.notification.notifier import (
     format_schedule_message, format_alarm_message,
@@ -331,13 +331,14 @@ def main():
         notification_state_manager.state = state  # Використовуємо той самий state
         
         # Перевіряємо чи наближається відключення або відновлення
-        warning_message = check_upcoming_events(
+        warning = check_upcoming_events(
             events_data,
             monitoring_group,
             notification_state_manager
         )
-        
-        if warning_message:
+
+        if warning:
+            warning_message = warning['message']
             logger.info(f"")
             logger.info(f"⚠️ Попередження:")
             logger.info(warning_message)
@@ -351,7 +352,12 @@ def main():
             
             if sent_count > 0:
                 logger.info(f"✅ Попередження відправлено в {sent_count}/{len(schedule_chat_ids)} чат(ів)")
-                # StateManager вже зберіг мітку про відправку всередині check_upcoming_events
+                notification_state_manager.mark_notification_sent(
+                    warning['key'],
+                    now_kyiv().isoformat()
+                )
+            else:
+                logger.error("❌ Попередження не відправлено; його буде повторено")
         else:
             logger.info("ℹ️ Попереджень не потрібно (детальну інформацію див. вище)")
     elif not config['enable_hourly_notifications']:
@@ -384,13 +390,19 @@ def main():
         day_label = format_date_label(date_str)
         
         # Перевірка змін
-        changed, old_hash, new_hash = is_changed(
-            monitoring_group, 
-            date_str, 
-            day_data, 
-            state,
-            source.get('source', '')
-        )
+        if is_schedule_pending(day_data):
+            # Не зберігаємо порожній графік, щоб перша публікація не виглядала
+            # як збільшення часу відключень
+            logger.info(f"⏳ Графік на {date_str} ще не опубліковано")
+            changed, old_hash, new_hash = False, '', ''
+        else:
+            changed, old_hash, new_hash = is_changed(
+                monitoring_group,
+                date_str,
+                day_data,
+                state,
+                source.get('source', '')
+            )
 
         current_periods = normalize_schedule_slots(day_data.get('slots', []))
         previous_periods = get_stored_schedule_slots(
@@ -522,8 +534,11 @@ def main():
                         success = True  # Вважаємо успішним для оновлення стану
                     
                     if success:
-                        state[f"last_alarm_{alarm_key}"] = str(alarm_key)
+                        mark_alarm_seen(alarm_key, state)
                         save_state(state)
+                else:
+                    # Аварія ще активна: не даємо очищенню видалити її ключ
+                    mark_alarm_seen(alarm_key, state)
         else:
             logger.info("✅ Аварій немає")
     else:

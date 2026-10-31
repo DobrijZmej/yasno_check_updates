@@ -5,7 +5,11 @@
 import logging
 import requests
 
+from modules.processing.state_manager import consolidate_periods
+
 logger = logging.getLogger(__name__)
+
+MINUTES_IN_DAY = 1440
 
 TELEGRAM_FOOTER = (
     '<a href="https://t.me/+ZQZvzzIFH3c2Yzgy">Цей бот</a> | '
@@ -57,30 +61,6 @@ def format_duration(minutes):
         return "??"
 
 
-def consolidate_periods(periods):
-    """Об'єднує сусідні періоди відключень"""
-    if not periods:
-        return []
-    
-    # Сортуємо за початком
-    sorted_periods = sorted(periods, key=lambda x: x['start'])
-    
-    consolidated = []
-    current = sorted_periods[0].copy()
-    
-    for period in sorted_periods[1:]:
-        if period['start'] <= current['end']:
-            # Об'єднуємо
-            current['end'] = max(current['end'], period['end'])
-        else:
-            # Новий період
-            consolidated.append(current)
-            current = period.copy()
-    
-    consolidated.append(current)
-    return consolidated
-
-
 def format_schedule_message(
     date_str,
     day_data,
@@ -100,7 +80,8 @@ def format_schedule_message(
         day_label: "сьогодні" або "завтра"
         source_info: {'source': str, 'update_time': str}
         group_change_info: {'previous': str, 'current': str} якщо група змінилась
-        duration_delta_minutes: зміна сумарного часу відключень у хвилинах
+        duration_delta_minutes: зміна сумарного часу відключень у хвилинах;
+            None якщо попереднього графіка на цей день не було
     
     Returns:
         str: форматоване повідомлення
@@ -178,14 +159,22 @@ def format_schedule_message(
                 marker = "⚡" if slot_type == "Definite" else "◦"
                 result += f"\n  {marker} {start_time} - {end_time} ({duration_str})"
 
+    total_minutes = sum(
+        period['end'] - period['start']
+        for period in consolidate_periods(outage_slots["Definite"] + outage_slots["Possible"])
+    )
+    # Арифметичне округлення: round() дав би 12% для 12.5%
+    percent = int(total_minutes / MINUTES_IN_DAY * 100 + 0.5)
+    result += f"\nЧас без світла: {format_duration(total_minutes)} ({percent}%)"
+
     if duration_delta_minutes is not None:
         if duration_delta_minutes > 0:
-            result += f"\nчас відключень збільшився на {format_duration(duration_delta_minutes)}"
+            result += f", зміна: +{format_duration(duration_delta_minutes)}"
         elif duration_delta_minutes < 0:
-            result += f"\nчас відключень зменшився на {format_duration(abs(duration_delta_minutes))}"
+            result += f", зміна: -{format_duration(abs(duration_delta_minutes))}"
         else:
-            result += "\nчас відключень не змінився"
-    
+            result += ", без змін"
+
     return result
 
 

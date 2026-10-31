@@ -9,6 +9,28 @@ from modules.timeutils import today_str
 logger = logging.getLogger(__name__)
 
 
+def is_schedule_pending(day_data):
+    """
+    Перевіряє чи графік на день ще не опубліковано.
+
+    Порожні слоти при WaitingForSchedule означають відсутність графіка,
+    а не підтверджену відсутність відключень.
+
+    Args:
+        day_data: дані дня з полями 'status' та 'slots'
+
+    Returns:
+        bool: True якщо провайдер ще не опублікував графік
+    """
+    if day_data.get('status') != 'WaitingForSchedule':
+        return False
+
+    return not any(
+        slot.get('type') in {'Definite', 'Possible'}
+        for slot in day_data.get('slots', [])
+    )
+
+
 def should_send_schedule(group, date_str, is_changed, state, day_data=None):
     """
     Визначає чи потрібно відправляти розклад для конкретної дати.

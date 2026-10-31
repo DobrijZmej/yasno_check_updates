@@ -6,13 +6,38 @@ import json
 import logging
 import os
 import hashlib
+from datetime import datetime, timedelta
 
-from modules.timeutils import today_str
+from modules.timeutils import now_kyiv, today_str
 
 logger = logging.getLogger(__name__)
 
 
 OUTAGE_TYPES = ("Definite", "Possible")
+
+
+def consolidate_periods(periods):
+    """Об'єднує сусідні та перекриті періоди відключень"""
+    if not periods:
+        return []
+
+    # Сортуємо за початком
+    sorted_periods = sorted(periods, key=lambda x: x['start'])
+
+    consolidated = []
+    current = dict(sorted_periods[0])
+
+    for period in sorted_periods[1:]:
+        if period['start'] <= current['end']:
+            # Об'єднуємо
+            current['end'] = max(current['end'], period['end'])
+        else:
+            # Новий період
+            consolidated.append(current)
+            current = dict(period)
+
+    consolidated.append(current)
+    return consolidated
 
 
 def normalize_schedule_slots(slots):
@@ -166,18 +191,26 @@ def load_state(state_file="states.json"):
 
 def save_state(state, state_file="states.json"):
     """
-    Зберігаємо стан у файл.
-    
+    Зберігаємо стан у файл атомарно: обірваний запис не псує попередній стан.
+
     Args:
         state: словник станів
         state_file: шлях до файлу для збереження
     """
+    temp_file = f"{state_file}.{os.getpid()}.tmp"
     try:
-        with open(state_file, 'w', encoding='utf-8') as f:
+        with open(temp_file, 'w', encoding='utf-8') as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_file, state_file)
         logger.debug(f"💾 Збережено стан у {state_file}: {len(state)} записів")
     except Exception as e:
         logger.error(f"❌ Помилка запису {state_file}: {e}")
+        try:
+            os.remove(temp_file)
+        except OSError:
+            pass
 
 
 def is_changed(group, date_str, day_data, state, source=''):
@@ -261,21 +294,55 @@ def update_state(group, date_str, new_hash, state, periods=None):
     return state
 
 
+def mark_alarm_seen(alarm_key, state):
+    """
+    Запам'ятовує час, коли аварію востаннє бачили в активних.
+
+    Args:
+        alarm_key: унікальний ключ аварії
+        state: поточний стан (буде змінено)
+    """
+    state[f"last_alarm_{alarm_key}"] = now_kyiv().isoformat()
+
+
+def _is_expired_alarm(value, cutoff_time):
+    """Чи минув термін зберігання аварії; None - якщо значення старого формату."""
+    try:
+        seen_at = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    if seen_at.tzinfo is None:
+        return None
+    return seen_at < cutoff_time
+
+
 def cleanup_old_states(state, days_to_keep=7):
     """
     Видаляємо старі записи зі стану (старші N днів).
-    
+
     Args:
         state: поточний стан
         days_to_keep: скільки днів зберігати
-    
+
     Returns:
         dict: очищений стан
     """
     cutoff_date = today_str(-days_to_keep)
-    
+    now = now_kyiv()
+    cutoff_time = now - timedelta(days=days_to_keep)
+
     keys_to_remove = []
     for key in state.keys():
+        # Аварії тримаємо, поки їх бачимо, щоб не надсилати повторно
+        if key.startswith('last_alarm_'):
+            expired = _is_expired_alarm(state[key], cutoff_time)
+            if expired is None:
+                # Старий формат без часу: відлік починаємо з цього запуску
+                state[key] = now.isoformat()
+            elif expired:
+                keys_to_remove.append(key)
+            continue
+
         # Пропускаємо service ключі (last_*, etc)
         if key.startswith('last_'):
             continue
