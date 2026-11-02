@@ -35,7 +35,7 @@ from modules.processing.state_manager import (
 
 from modules.notification.rules import (
     should_send_schedule, should_send_alarm,
-    format_date_label, is_schedule_pending
+    format_date_label, is_schedule_unavailable
 )
 from modules.notification.notifier import (
     format_schedule_message, format_alarm_message,
@@ -390,10 +390,12 @@ def main():
         day_label = format_date_label(date_str)
         
         # Перевірка змін
-        if is_schedule_pending(day_data):
-            # Не зберігаємо порожній графік, щоб перша публікація не виглядала
-            # як збільшення часу відключень
-            logger.info(f"⏳ Графік на {date_str} ще не опубліковано")
+        logger.info(f"📋 Статус дня {date_str}: {day_data.get('status', 'немає')}")
+        if is_schedule_unavailable(day_data):
+            # Не зберігаємо порожній графік: інакше перша публікація виглядала б
+            # як збільшення часу відключень, а чинний графік після аварійного
+            # режиму надсилався б повторно
+            logger.info(f"⏳ Чинного графіка на {date_str} немає")
             changed, old_hash, new_hash = False, '', ''
         else:
             changed, old_hash, new_hash = is_changed(

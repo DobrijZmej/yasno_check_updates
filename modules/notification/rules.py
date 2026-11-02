@@ -8,21 +8,25 @@ from modules.timeutils import today_str
 
 logger = logging.getLogger(__name__)
 
+CONFIRMED_SCHEDULE_STATUSES = {'ScheduleApplies', 'NoOutages'}
 
-def is_schedule_pending(day_data):
+
+def is_schedule_unavailable(day_data):
     """
-    Перевіряє чи графік на день ще не опубліковано.
+    Перевіряє чи на день немає чинного графіка.
 
-    Порожні слоти при WaitingForSchedule означають відсутність графіка,
-    а не підтверджену відсутність відключень.
+    Порожні слоти означають відсутність відключень лише при підтвердженому
+    статусі. Очікування графіка чи аварійний режим - це відсутність графіка,
+    тому такий день не можна зберігати як розклад без відключень.
 
     Args:
         day_data: дані дня з полями 'status' та 'slots'
 
     Returns:
-        bool: True якщо провайдер ще не опублікував графік
+        bool: True якщо провайдер не надав чинного графіка
     """
-    if day_data.get('status') != 'WaitingForSchedule':
+    # Старі джерела взагалі не мають статусу
+    if 'status' not in day_data or day_data['status'] in CONFIRMED_SCHEDULE_STATUSES:
         return False
 
     return not any(

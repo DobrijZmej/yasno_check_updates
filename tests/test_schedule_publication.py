@@ -3,7 +3,7 @@ import json
 import pytest
 
 import main
-from modules.notification.rules import is_schedule_pending
+from modules.notification.rules import is_schedule_unavailable
 
 
 TODAY = "2026-10-30"
@@ -30,6 +30,11 @@ REVISED = {
     ],
 }
 NO_OUTAGES = {**WAITING, "status": "NoOutages"}
+EMERGENCY = {**WAITING, "status": "EmergencyShutdowns"}
+NOT_PLANNED_ALL_DAY = {
+    **PUBLISHED,
+    "slots": [{"start": 0, "end": 1440, "type": "NotPlanned"}],
+}
 
 
 @pytest.fixture
@@ -117,8 +122,50 @@ def test_confirmed_absence_of_outages_is_still_a_real_baseline(run_bot):
     assert sent[0].endswith("Час без світла: 7:00 (29%), зміна: +7:00")
 
 
-def test_waiting_status_with_outages_is_not_pending():
-    assert not is_schedule_pending({**PUBLISHED, "status": "WaitingForSchedule"})
-    assert is_schedule_pending(WAITING)
-    assert not is_schedule_pending(NO_OUTAGES)
-    assert not is_schedule_pending({"slots": []})
+def test_first_publication_after_emergency_has_no_delta(run_bot):
+    run_bot(EMERGENCY)
+
+    sent = run_bot(PUBLISHED)
+
+    assert len(sent) == 1
+    assert sent[0].endswith("Час без світла: 7:00 (29%)")
+
+
+def test_unchanged_schedule_is_not_resent_after_emergency(run_bot):
+    run_bot(PUBLISHED)
+    run_bot(EMERGENCY)
+
+    assert run_bot(PUBLISHED) == []
+
+
+def test_changed_schedule_after_emergency_shows_delta_from_last_schedule(run_bot):
+    run_bot(PUBLISHED)
+    run_bot(EMERGENCY)
+
+    sent = run_bot(REVISED)
+
+    assert sent[0].endswith("Час без світла: 7:30 (31%), зміна: +0:30")
+
+
+def test_published_day_without_outages_is_a_real_baseline(run_bot):
+    run_bot(NOT_PLANNED_ALL_DAY)
+
+    sent = run_bot(PUBLISHED)
+
+    assert sent[0].endswith("Час без світла: 7:00 (29%), зміна: +7:00")
+
+
+@pytest.mark.parametrize("status", ["WaitingForSchedule", "EmergencyShutdowns", "Unknown"])
+def test_empty_day_without_confirmed_status_is_unavailable(status):
+    assert is_schedule_unavailable({"status": status, "slots": []})
+    assert is_schedule_unavailable(
+        {"status": status, "slots": [{"start": 0, "end": 1440, "type": "NotPlanned"}]}
+    )
+
+
+def test_outages_or_confirmed_status_make_schedule_available():
+    assert not is_schedule_unavailable({**PUBLISHED, "status": "WaitingForSchedule"})
+    assert not is_schedule_unavailable({**PUBLISHED, "status": "EmergencyShutdowns"})
+    assert not is_schedule_unavailable(NO_OUTAGES)
+    assert not is_schedule_unavailable(NOT_PLANNED_ALL_DAY)
+    assert not is_schedule_unavailable({"slots": []})
