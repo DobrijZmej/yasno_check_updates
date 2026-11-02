@@ -10,6 +10,7 @@ Home Assistant Integration для Akadem Svitlo
    - HA_URL=http://homeassistant.local:8123
    - HA_TOKEN=your_long_lived_access_token
    - HA_SENSOR_ENTITY_ID=sensor.energy_monitor_001
+   - HA_HEATING_SENSOR=entity_id термометра на батареї (необов'язково; якщо порожнє, температура не надсилається)
    - LARAVEL_API_URL=https://your-site.com/api
    - API_TOKEN=your_laravel_api_token
 
@@ -33,6 +34,7 @@ Home Assistant Integration для Akadem Svitlo
 - Вказати інтервал: python home_assistant_integration.py --loop --interval 30
 """
 
+import math
 import os
 import sys
 import time
@@ -52,6 +54,7 @@ HA_VOLTAGE_SENSOR = os.getenv('HA_VOLTAGE_SENSOR', 'sensor.0xb43522fffec16319_vo
 HA_FREQUENCY_SENSOR = os.getenv('HA_FREQUENCY_SENSOR', 'sensor.0xb43522fffec16319_ac_frequency')
 HA_POWER_SENSOR = os.getenv('HA_POWER_SENSOR', 'binary_sensor.is_electicity_exists')
 HA_MODE_SENSOR = os.getenv('HA_MODE_SENSOR', 'input_text.yasno_last_state')
+HA_HEATING_SENSOR = os.getenv('HA_HEATING_SENSOR')
 HA_VERIFY_SSL = os.getenv('HA_VERIFY_SSL', 'true').lower() in ('true', '1', 'yes')
 
 # Конфігурація Laravel API
@@ -226,6 +229,81 @@ def send_sensor_data_to_laravel(sensor_data):
         return False
 
 
+def get_heating_temperature_from_ha():
+    """
+    Отримати температуру батареї з Home Assistant
+    
+    Returns:
+        float: Температура в °C або None, якщо сенсор не повернув числа
+    """
+    headers = {
+        'Authorization': f'Bearer {HA_TOKEN}',
+        'Content-Type': 'application/json',
+    }
+    
+    heating_url = f"{HA_URL}/api/states/{HA_HEATING_SENSOR}"
+    heating_response = requests.get(heating_url, headers=headers, timeout=30, verify=HA_VERIFY_SSL)
+    heating_response.raise_for_status()
+    heating_state = heating_response.json().get('state')
+    
+    # unavailable, unknown і порожній стан теж не проходять float()
+    try:
+        temperature = float(heating_state)
+    except (ValueError, TypeError):
+        temperature = None
+    
+    # float() приймає nan та inf, але це не показник і не валідний JSON
+    if temperature is None or not math.isfinite(temperature):
+        print(f"⚠️ Температура батареї недоступна ({HA_HEATING_SENSOR}): state={heating_state!r}")
+        return None
+    
+    return temperature
+
+
+def send_heating_temperature_to_laravel(temperature):
+    """
+    Відправити температуру батареї до Laravel API
+    
+    Args:
+        temperature (float): Температура в °C
+    """
+    headers = {
+        'Authorization': f'Bearer {API_TOKEN}',
+        'Content-Type': 'application/json',
+    }
+    
+    url = f"{LARAVEL_API_URL}/api/update/heating"
+    payload = {'temperature': temperature}
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=30, verify=HA_VERIFY_SSL)
+    response.raise_for_status()
+    result = response.json()
+    
+    if not result.get('success'):
+        print(f"⚠️ Помилка від API при відправці температури батареї: {result}")
+    elif result.get('ignored'):
+        print(f"ℹ️ Температуру батареї пропущено порталом: {temperature} °C (попередню збережено менш ніж 50 сек тому)")
+    else:
+        print(f"✅ Температуру батареї успішно відправлено:")
+        print(f"   🌡️ Батарея: {temperature} °C")
+
+
+def sync_heating():
+    """
+    Передати температуру батареї на портал, якщо налаштовано HA_HEATING_SENSOR.
+    Будь-який збій лише друкується в лог і не впливає на облік електрики.
+    """
+    if not HA_HEATING_SENSOR:
+        return
+    
+    try:
+        temperature = get_heating_temperature_from_ha()
+        if temperature is not None:
+            send_heating_temperature_to_laravel(temperature)
+    except Exception as e:
+        print(f"⚠️ Помилка при передачі температури батареї: {e}")
+
+
 def sync_once():
     """
     Одноразова синхронізація даних
@@ -236,6 +314,8 @@ def sync_once():
     print(f"   Сенсор частоти: {HA_FREQUENCY_SENSOR}")
     print(f"   Сенсор електрики: {HA_POWER_SENSOR}")
     print(f"   Сенсор режиму: {HA_MODE_SENSOR}")
+    if HA_HEATING_SENSOR:
+        print(f"   Сенсор батареї: {HA_HEATING_SENSOR}")
     print(f"   SSL Verification: {'✓ Увімкнено' if HA_VERIFY_SSL else '✗ Вимкнено'}")
     print(f"   Laravel API: {LARAVEL_API_URL}")
     print()
@@ -245,6 +325,7 @@ def sync_once():
     
     if not sensor_data:
         print("❌ Не вдалося отримати дані з Home Assistant")
+        sync_heating()
         return False
     
     print(f"📥 Отримано дані з Home Assistant:")
@@ -261,6 +342,9 @@ def sync_once():
     
     # Відправляємо до Laravel
     success = send_sensor_data_to_laravel(sensor_data)
+    
+    # Температура окремим запитом, її результат не впливає на success
+    sync_heating()
     
     return success
 
